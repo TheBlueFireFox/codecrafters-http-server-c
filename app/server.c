@@ -1,11 +1,14 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+#include "http.h"
 
 int main() {
   // Disable output buffering
@@ -18,8 +21,9 @@ int main() {
 
   // Uncomment this block to pass the first stage
 
-  int server_fd, client_addr_len;
+  int server_fd;
   struct sockaddr_in client_addr;
+  socklen_t client_addr_len;
 
   server_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (server_fd == -1) {
@@ -56,8 +60,24 @@ int main() {
   printf("Waiting for a client to connect...\n");
   client_addr_len = sizeof(client_addr);
 
-  accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+  int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
   printf("Client connected\n");
+
+  uint8_t buf[MAX_BUFFER];
+  memset(buf, 0, MAX_BUFFER);
+
+  HttpResponse resp = {
+      .version = HTTP1_1,
+      .status = OK,
+      .headers = {},
+      .body = NULL,
+  };
+
+  size_t s = write_response(buf, &resp);
+
+  write(client_fd, buf, s);
+
+  close(client_fd);
 
   close(server_fd);
 
