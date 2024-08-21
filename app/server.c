@@ -9,6 +9,34 @@
 #include <unistd.h>
 
 #include "http.h"
+#include "routes.h"
+
+void handle_client(int client_fd) {
+  printf("Client connected\n");
+
+  uint8_t in_buf[MAX_BUFFER];
+  memset(in_buf, 0, MAX_BUFFER);
+
+  size_t s = read(client_fd, in_buf, MAX_BUFFER);
+
+  if (s == MAX_BUFFER) {
+    printf("read max buffer size -- resizing of buffer required!");
+    exit(1);
+  }
+
+  HttpRequest req = parse_request(in_buf);
+
+  uint8_t out_buf[MAX_BUFFER];
+  memset(out_buf, 0, MAX_BUFFER);
+
+  s = handle_routes(out_buf, &req);
+
+  write(client_fd, out_buf, s);
+
+  free_http_request(&req);
+
+  close(client_fd);
+}
 
 int main() {
   // Disable output buffering
@@ -60,24 +88,16 @@ int main() {
   printf("Waiting for a client to connect...\n");
   client_addr_len = sizeof(client_addr);
 
-  int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
-  printf("Client connected\n");
+  for (;;) {
+    int client_fd =
+        accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
 
-  uint8_t buf[MAX_BUFFER];
-  memset(buf, 0, MAX_BUFFER);
+    if (client_fd == -1) {
+      break;
+    }
 
-  HttpResponse resp = {
-      .version = HTTP1_1,
-      .status = OK,
-      .headers = {},
-      .body = NULL,
-  };
-
-  size_t s = write_response(buf, &resp);
-
-  write(client_fd, buf, s);
-
-  close(client_fd);
+    handle_client(client_fd);
+  }
 
   close(server_fd);
 
