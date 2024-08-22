@@ -43,7 +43,12 @@ typedef struct HttpHeaders HttpHeaders;
 
 size_t write_headers(uint8_t *const buf, HttpHeaders *headers);
 
-typedef uint8_t *HttpBody;
+struct HttpBody {
+  uint8_t *body;
+  size_t len;
+};
+
+typedef struct HttpBody HttpBody;
 
 struct HttpResponse {
   HttpVersion version;
@@ -91,5 +96,12 @@ typedef struct HttpRequest HttpRequest;
 HttpRequest parse_request(const uint8_t *buf);
 
 void free_http_request(HttpRequest *req);
+
+// headers
+#define CONTENT_TYPE "Content-Type"
+#define CONTENT_LENGTH "Content-Length"
+
+// content types
+#define TEXT_PLAIN "text/plain"
 
 #endif // !HTTP

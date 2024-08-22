@@ -58,11 +58,14 @@ size_t write_headers(uint8_t *const buf, HttpHeaders *headers) {
     const char *const value = headers->headers.ptr[i].value;
     size += sprintf((char *)buf + size, "%s: %s" ENDLINE, key, value);
   }
-  if (size == 0) {
-    size += write_endline(buf);
-  }
+  size += write_endline(buf + size);
 
   return size;
+}
+
+size_t write_body(uint8_t *const buf, HttpBody *body) {
+  memcpy(buf, body->body, body->len);
+  return body->len;
 }
 
 size_t write_response(uint8_t *const buf, HttpResponse *resp) {
@@ -74,6 +77,7 @@ size_t write_response(uint8_t *const buf, HttpResponse *resp) {
   s += write_status(buf + s, resp->status);
   s += write_endline(buf + s);
   s += write_headers(buf + s, &resp->headers);
+  s += write_body(buf + s, &resp->body);
 
   return s;
 }
