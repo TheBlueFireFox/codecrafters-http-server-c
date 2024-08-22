@@ -59,6 +59,9 @@ struct HttpResponse {
 
 typedef struct HttpResponse HttpResponse;
 
+HttpResponse init_response(HttpStatus status);
+void free_http_response(HttpResponse *resp);
+
 size_t write_response(uint8_t *const buf, HttpResponse *resp);
 
 // // Request line
@@ -100,6 +103,7 @@ void free_http_request(HttpRequest *req);
 // headers
 #define CONTENT_TYPE "Content-Type"
 #define CONTENT_LENGTH "Content-Length"
+#define USER_AGENT "User-Agent"
 
 // content types
 #define TEXT_PLAIN "text/plain"

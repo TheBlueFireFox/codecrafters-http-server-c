@@ -12,71 +12,105 @@ typedef const char *HttpParams;
 typedef size_t (*fnPtr)(uint8_t *const buf, HttpRequest *req,
                         HttpParams params);
 
+size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
+  char content_len[100];
+  if (resp->body.body != NULL && resp->body.len > 0) {
+    sprintf(content_len, "%zu", resp->body.len);
+
+    HttpHeader content_length = {
+        .key = CONTENT_LENGTH,
+        .value = content_len,
+    };
+    push_vector_HttpHeader(&resp->headers.headers, content_length);
+  }
+
+  return write_response(buf, resp);
+}
+
 size_t handle_root(uint8_t *const buf, HttpRequest *req, HttpParams params) {
   (void)params;
 
-  HttpResponse resp = {
-      .version = HTTP1_1,
-      .status = OK,
-      .headers = {},
-      .body = NULL,
-  };
+  HttpResponse resp = init_response(OK);
 
-  return write_response(buf, &resp);
+  size_t res = write_response_helper(buf, &resp);
+
+  free_http_response(&resp);
+
+  return res;
 }
 
 size_t handle_echo(uint8_t *const buf, HttpRequest *req, HttpParams params) {
+  HttpResponse resp = init_response(OK);
+
   uint8_t body_buf[1024];
   strcpy((char *)body_buf, params);
+
   HttpBody body = {
       .body = body_buf,
       .len = strlen(params),
   };
 
-  char content_len[100];
-  sprintf(content_len, "%zu", body.len);
-
-  HttpHeader content_length = {
-      .key = CONTENT_LENGTH,
-      .value = content_len,
+  HttpHeader content_type = {
+      .key = CONTENT_TYPE,
+      .value = TEXT_PLAIN,
   };
 
-  Vector_HttpHeader header_vec = init_vector_HttpHeader();
-  HttpHeader header_arr[] = {
-      {
-          .key = CONTENT_TYPE,
-          .value = TEXT_PLAIN,
-      },
-      content_length,
-  };
+  push_vector_HttpHeader(&resp.headers.headers, content_type);
 
-  for (size_t i = 0; i < ARRAY_SIZE(header_arr); i += 1) {
-    push_vector_HttpHeader(&header_vec, header_arr[i]);
+  resp.body = body;
+
+  size_t res = write_response_helper(buf, &resp);
+
+  free_http_response(&resp);
+
+  return res;
+}
+
+size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
+                         HttpParams params) {
+
+  uint8_t body_buf[1024];
+
+  // Assuming there is a user agent header
+  for (size_t i = 0; i < req->headers.headers.len; i += 1) {
+    HttpHeader *header = &req->headers.headers.ptr[i];
+
+    if (strcmp(header->key, USER_AGENT) == 0) {
+      strcpy((char *)body_buf, header->value);
+      break;
+    }
   }
 
-  HttpHeaders headers = {
-      .headers = header_vec,
+  HttpBody body = {
+      .body = body_buf,
+      .len = strlen((char *)body_buf),
   };
 
-  HttpResponse resp = {
-      .version = HTTP1_1,
-      .status = OK,
-      .headers = headers,
-      .body = body,
+  HttpHeader content_type = {
+      .key = CONTENT_TYPE,
+      .value = TEXT_PLAIN,
   };
 
-  return write_response(buf, &resp);
+  HttpResponse resp = init_response(OK);
+  push_vector_HttpHeader(&resp.headers.headers, content_type);
+
+  resp.body = body;
+
+  size_t res = write_response_helper(buf, &resp);
+
+  free_http_response(&resp);
+
+  return res;
 }
 
 size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
-  HttpResponse resp = {
-      .version = HTTP1_1,
-      .status = NOT_FOUND,
-      .headers = {},
-      .body = NULL,
-  };
+  HttpResponse resp = init_response(NOT_FOUND);
 
-  return write_response(buf, &resp);
+  size_t res = write_response(buf, &resp);
+
+  free_http_response(&resp);
+
+  return res;
 }
 
 #define MAX_MATCH_COUNT 1
@@ -85,12 +119,14 @@ size_t handle_routes(uint8_t *const buf, HttpRequest *req) {
   fnPtr routes_ptr[] = {
       &handle_root,
       &handle_echo,
+      &handle_user_agent,
   };
 
   // USING REGEX TO MATCH ROUTES
   char *routes_str[] = {
       "/",
       "/echo/*",
+      "/user-agent",
   };
 
   printf("request for %s\n", req->url);

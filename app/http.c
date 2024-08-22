@@ -204,3 +204,26 @@ HttpRequest parse_request(const uint8_t *buf) {
 void free_http_request(HttpRequest *req) {
   free_vector_HttpHeader(&req->headers.headers);
 }
+
+HttpResponse init_response(HttpStatus status) {
+  HttpHeaders headers = {
+      .headers = init_vector_HttpHeader(),
+  };
+  HttpBody body = {
+      .body = NULL,
+      .len = 0,
+  };
+
+  HttpResponse resp = {
+      .version = HTTP1_1,
+      .status = status,
+      .headers = headers,
+      .body = body,
+  };
+
+  return resp;
+}
+
+void free_http_response(HttpResponse *resp) {
+  free_vector_HttpHeader(&resp->headers.headers);
+}
