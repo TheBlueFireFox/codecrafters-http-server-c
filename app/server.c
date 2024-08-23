@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -10,6 +11,7 @@
 
 #include "http.h"
 #include "routes.h"
+#include "thread.h"
 
 void handle_client(int client_fd) {
   printf("Client connected\n");
@@ -38,6 +40,11 @@ void handle_client(int client_fd) {
   close(client_fd);
 }
 
+void thread_function(void *args) {
+  int *client_fd = args;
+  handle_client(*client_fd);
+}
+
 int main() {
   // Disable output buffering
   setbuf(stdout, NULL);
@@ -46,6 +53,8 @@ int main() {
   // You can use print statements as follows for debugging, they'll be visible
   // when running tests.
   printf("Logs from your program will appear here!\n");
+
+  ThreadPool pool = init_threadpool(&thread_function);
 
   // Uncomment this block to pass the first stage
 
@@ -89,15 +98,25 @@ int main() {
   client_addr_len = sizeof(client_addr);
 
   for (;;) {
-    int client_fd =
+    int client_fd_raw =
         accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
 
-    if (client_fd == -1) {
+    if (client_fd_raw == -1) {
       break;
     }
 
-    handle_client(client_fd);
+    int *client_fd = malloc(sizeof(int));
+    assert(client_fd != NULL);
+
+    *client_fd = client_fd_raw;
+
+    printf("Client connection added to the thread pool");
+
+    // move client to thread pool
+    add_threaded_task(&pool, client_fd);
   }
+
+  free_threadpool(&pool);
 
   close(server_fd);
 
