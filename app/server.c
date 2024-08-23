@@ -13,10 +13,10 @@
 #include "routes.h"
 #include "thread.h"
 
-void handle_client(int client_fd) {
+void handle_client(int client_fd, AppState *state) {
   printf("Client connected\n");
 
-  uint8_t in_buf[MAX_BUFFER];
+  uint8_t *in_buf = malloc(sizeof(uint8_t) * MAX_BUFFER);
   memset(in_buf, 0, MAX_BUFFER);
 
   size_t s = read(client_fd, in_buf, MAX_BUFFER);
@@ -31,7 +31,7 @@ void handle_client(int client_fd) {
   uint8_t out_buf[MAX_BUFFER];
   memset(out_buf, 0, MAX_BUFFER);
 
-  s = handle_routes(out_buf, &req);
+  s = handle_routes(out_buf, &req, state);
 
   write(client_fd, out_buf, s);
 
@@ -40,12 +40,26 @@ void handle_client(int client_fd) {
   close(client_fd);
 }
 
+struct ThreadFunctionHelper {
+  int client_fd;
+  AppState *state;
+};
+
 void thread_function(void *args) {
-  int *client_fd = args;
-  handle_client(*client_fd);
+  struct ThreadFunctionHelper *state = args;
+  handle_client(state->client_fd, state->state);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+  char *directory = NULL;
+  // get directory from
+  for (size_t i = 1; i < argc; i += 1) {
+    if (strcmp(argv[i], "--directory") == 0) {
+      directory = argv[i + 1];
+      break;
+    }
+  }
+
   // Disable output buffering
   setbuf(stdout, NULL);
   setbuf(stderr, NULL);
@@ -56,7 +70,9 @@ int main() {
 
   ThreadPool pool = init_threadpool(&thread_function);
 
-  // Uncomment this block to pass the first stage
+  AppState state = {
+      .directory = directory,
+  };
 
   int server_fd;
   struct sockaddr_in client_addr;
@@ -105,15 +121,18 @@ int main() {
       break;
     }
 
-    int *client_fd = malloc(sizeof(int));
-    assert(client_fd != NULL);
+    struct ThreadFunctionHelper *tf =
+        malloc(sizeof(struct ThreadFunctionHelper));
 
-    *client_fd = client_fd_raw;
+    assert(tf != NULL);
+
+    tf->client_fd = client_fd_raw;
+    tf->state = &state;
 
     printf("Client connection added to the thread pool");
 
     // move client to thread pool
-    add_threaded_task(&pool, client_fd);
+    add_threaded_task(&pool, tf);
   }
 
   free_threadpool(&pool);

@@ -6,7 +6,7 @@
 
 #include "vector.h"
 
-#define MAX_BUFFER 20 * 1024
+#define MAX_BUFFER 64 * 1024
 
 enum HttpVersion {
   HTTP1_1,
@@ -107,5 +107,6 @@ void free_http_request(HttpRequest *req);
 
 // content types
 #define TEXT_PLAIN "text/plain"
+#define OCTET_STREAM "application/octet-stream"
 
 #endif // !HTTP

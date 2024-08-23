@@ -47,7 +47,6 @@ ThreadPool init_threadpool(ThreadFunction fn) {
   };
 
   for (size_t i = 0; i < THREADPOOL_SIZE; i += 1) {
-    // TODO:
     // INIT Threadpool
     pthread_create(&pool.thread[i], NULL, &thread_start, state);
   }

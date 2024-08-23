@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#define THREADPOOL_SIZE 8
+
 struct ThreadTask {
   void *payload;
   struct ThreadTask *next;
@@ -30,8 +32,6 @@ void add_task(ThreadQueue *queue, void *task);
 void *pop_task(ThreadQueue *queue);
 
 typedef void (*ThreadFunction)(void *);
-
-#define THREADPOOL_SIZE 8
 
 struct ThreadPoolState {
   bool is_active;

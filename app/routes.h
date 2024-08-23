@@ -5,6 +5,12 @@
 
 #include "http.h"
 
-size_t handle_routes(uint8_t *const buf, HttpRequest *req);
+struct AppState {
+  char *directory;
+};
+
+typedef struct AppState AppState;
+
+size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state);
 
 #endif // !ROUTES
