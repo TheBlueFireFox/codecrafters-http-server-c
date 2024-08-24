@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +15,9 @@
 #include "thread.h"
 
 void handle_client(int client_fd, AppState *state) {
-  printf("Client connected\n");
+  pthread_t self = pthread_self();
+
+  printf("Client connected to %lu\n", self);
 
   uint8_t *in_buf = malloc(sizeof(uint8_t) * MAX_BUFFER);
   memset(in_buf, 0, MAX_BUFFER);
@@ -129,7 +132,7 @@ int main(int argc, char *argv[]) {
     tf->client_fd = client_fd_raw;
     tf->state = &state;
 
-    printf("Client connection added to the thread pool");
+    printf("Client connection added to the thread pool\n");
 
     // move client to thread pool
     add_threaded_task(&pool, tf);

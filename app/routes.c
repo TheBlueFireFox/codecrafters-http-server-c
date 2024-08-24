@@ -27,7 +27,10 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
     push_vector_HttpHeader(&resp->headers.headers, content_length);
   }
 
-  return write_response(buf, resp);
+  size_t res = write_response(buf, resp);
+
+  printf("wrote response\n");
+  return res;
 }
 
 size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
@@ -39,6 +42,7 @@ size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
 
   return res;
 }
+
 size_t handle_root(uint8_t *const buf, HttpRequest *req, HttpParams params,
                    AppState *state) {
   (void)params;
