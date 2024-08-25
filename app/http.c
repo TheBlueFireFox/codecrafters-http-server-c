@@ -71,6 +71,7 @@ size_t write_headers(uint8_t *const buf, HttpHeaders *headers) {
     const char *const value = headers->headers.ptr[i].value;
     size += sprintf((char *)buf + size, "%s: %s" ENDLINE, key, value);
   }
+
   size += write_endline(buf + size);
 
   return size;
@@ -154,6 +155,14 @@ size_t parse_headers(const uint8_t *buf, HttpHeaders *headers) {
     push_vector_HttpHeader(&headers->headers, header);
   }
 
+  const char *content_encoding = find_in_header(headers, ACCEPT_ENCODING);
+
+  // just see if gzip is requested
+  if (content_encoding != NULL &&
+      strstr(content_encoding, GZIP_ENCODING) != NULL) {
+    headers->encoding = GZIP;
+  }
+
   return s;
 }
 
@@ -190,6 +199,7 @@ HttpRequest parse_request(const uint8_t *buf) {
 
   HttpHeaders headers = {
       .headers = init_vector_HttpHeader(),
+      .encoding = NO_ENCODING,
   };
 
   s += parse_headers(buf + s, &headers);
@@ -228,9 +238,10 @@ void free_http_request(HttpRequest *req) {
   free_vector_HttpHeader(&req->headers.headers);
 }
 
-HttpResponse init_response(HttpStatus status) {
+HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding) {
   HttpHeaders headers = {
       .headers = init_vector_HttpHeader(),
+      .encoding = encoding,
   };
   HttpBody body = {
       .body = NULL,

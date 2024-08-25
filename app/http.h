@@ -32,10 +32,18 @@ struct HttpHeader {
 
 typedef struct HttpHeader HttpHeader;
 
+enum HttpContentEncoding {
+  GZIP,
+  NO_ENCODING,
+};
+
+typedef enum HttpContentEncoding HttpContentEncoding;
+
 INIT_VECTOR(HttpHeader);
 
 struct HttpHeaders {
   Vector_HttpHeader headers;
+  HttpContentEncoding encoding;
 };
 
 typedef struct HttpHeaders HttpHeaders;
@@ -60,7 +68,7 @@ struct HttpResponse {
 
 typedef struct HttpResponse HttpResponse;
 
-HttpResponse init_response(HttpStatus status);
+HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding);
 void free_http_response(HttpResponse *resp);
 
 size_t write_response(uint8_t *const buf, HttpResponse *resp);
@@ -105,9 +113,14 @@ void free_http_request(HttpRequest *req);
 #define CONTENT_TYPE "Content-Type"
 #define CONTENT_LENGTH "Content-Length"
 #define USER_AGENT "User-Agent"
+#define CONTENT_ENCODING "Content-Encoding"
+#define ACCEPT_ENCODING "Accept-Encoding"
 
 // content types
 #define TEXT_PLAIN "text/plain"
 #define OCTET_STREAM "application/octet-stream"
+
+// encodings
+#define GZIP_ENCODING "gzip"
 
 #endif // !HTTP
