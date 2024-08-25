@@ -14,25 +14,50 @@
 #include "routes.h"
 #include "thread.h"
 
+#define INITIAL_BUFFER 16 * 1014
+
 void handle_client(int client_fd, AppState *state) {
   pthread_t self = pthread_self();
 
   printf("Client connected to %lu\n", self);
 
-  uint8_t *in_buf = malloc(sizeof(uint8_t) * MAX_BUFFER);
-  memset(in_buf, 0, MAX_BUFFER);
+  size_t buffer_size = INITIAL_BUFFER;
 
-  size_t s = read(client_fd, in_buf, MAX_BUFFER);
+  uint8_t *in_buf = calloc(buffer_size, sizeof(uint8_t));
 
-  if (s == MAX_BUFFER) {
-    printf("read max buffer size -- resizing of buffer required!");
-    exit(1);
+  HttpRequest req;
+  size_t s = 0;
+
+  while (1) {
+    // there should be enough space for the initial request headers
+    s = read(client_fd, in_buf + s, INITIAL_BUFFER);
+    // if (s == INITIAL_BUFFER) {
+    //   printf("read max buffer size -- resizing of buffer required!");
+    //   exit(1);
+    // }
+
+    req = parse_request(in_buf);
+
+    if (s <= buffer_size) {
+      // there might be a body or we are large enough at this point :)
+      break;
+    }
+
+    // get new lenght requirement
+    if (req.body.len > 0) {
+      // there is a body attached to this msg
+      //
+      // body attached check msg buffer size and if required expand it
+      // some more
+      size_t header_len = in_buf - req.body.body;
+      buffer_size = header_len + req.body.len;
+      in_buf = realloc(in_buf, buffer_size);
+      memset(in_buf + s, 0, buffer_size - s);
+    }
   }
 
-  HttpRequest req = parse_request(in_buf);
-
-  uint8_t out_buf[MAX_BUFFER];
-  memset(out_buf, 0, MAX_BUFFER);
+  uint8_t out_buf[INITIAL_BUFFER];
+  memset(out_buf, 0, INITIAL_BUFFER);
 
   s = handle_routes(out_buf, &req, state);
 
@@ -56,7 +81,7 @@ void thread_function(void *args) {
 int main(int argc, char *argv[]) {
   char *directory = NULL;
   // get directory from
-  for (size_t i = 1; i < argc; i += 1) {
+  for (int i = 1; i < argc; i += 1) {
     if (strcmp(argv[i], "--directory") == 0) {
       directory = argv[i + 1];
       break;
@@ -116,7 +141,7 @@ int main(int argc, char *argv[]) {
   printf("Waiting for a client to connect...\n");
   client_addr_len = sizeof(client_addr);
 
-  for (;;) {
+  while (1) {
     int client_fd_raw =
         accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
 

@@ -1,6 +1,7 @@
 #ifndef VECTOR
 #define VECTOR
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -17,7 +18,7 @@
   };                                                                           \
                                                                                \
   typedef struct Vector_##X Vector_##X;                                        \
-  static Vector_##X init_vector_##X() {                                        \
+  __attribute__((unused)) static Vector_##X init_vector_##X() {                \
     Vector_##X v = {                                                           \
         .ptr = NULL,                                                           \
         .len = 0,                                                              \
@@ -25,24 +26,27 @@
     };                                                                         \
     return v;                                                                  \
   }                                                                            \
-  static void free_vector_##X(Vector_##X *vec) {                               \
+                                                                               \
+  __attribute__((unused)) static void free_vector_##X(Vector_##X *vec) {       \
     free(vec->ptr);                                                            \
     *vec = init_vector_##X();                                                  \
   }                                                                            \
-  static void realloc_vector_##X(Vector_##X *vec) {                            \
+                                                                               \
+  __attribute__((unused)) static void realloc_vector_##X(Vector_##X *vec) {    \
     if (vec->ptr == NULL) {                                                    \
       /* new list */                                                           \
-      vec->ptr = (X *)malloc(START_SIZE * sizeof(X));                          \
       vec->capacity = START_SIZE;                                              \
+    } /* realloc */                                                            \
+    else if (vec->len == vec->capacity) {                                      \
+      /* capacity * 2 */                                                       \
+      vec->capacity *= 2;                                                      \
     }                                                                          \
-    /* realloc */                                                              \
-    if (vec->len == vec->capacity) {                                           \
-      /* len * 2 */                                                            \
-      vec->len *= 2;                                                           \
-      vec->ptr = (X *)realloc(vec->ptr, vec->len);                             \
-    }                                                                          \
+    vec->ptr = (X *)realloc(vec->ptr, sizeof(X) * vec->capacity);              \
+    assert(vec->ptr != NULL);                                                  \
   }                                                                            \
-  static void push_vector_##X(Vector_##X *vec, X elem) {                       \
+                                                                               \
+  __attribute__((unused)) static void push_vector_##X(Vector_##X *vec,         \
+                                                      X elem) {                \
     if (vec->capacity == vec->len) {                                           \
       /* realloc */                                                            \
       realloc_vector_##X(vec);                                                 \

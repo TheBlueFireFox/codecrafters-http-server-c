@@ -6,8 +6,6 @@
 
 #include "vector.h"
 
-#define MAX_BUFFER 64 * 1024
-
 enum HttpVersion {
   HTTP1_1,
 };
@@ -19,6 +17,7 @@ size_t write_version(uint8_t *const buf, HttpVersion status);
 enum HttpStatus {
   OK,
   BAD_REQ,
+  CREATED,
   NOT_FOUND,
 };
 
@@ -27,8 +26,8 @@ typedef enum HttpStatus HttpStatus;
 size_t write_status(uint8_t *const buf, HttpStatus status);
 
 struct HttpHeader {
-  char *key;
-  char *value;
+  const char *key;
+  const char *value;
 };
 
 typedef struct HttpHeader HttpHeader;
@@ -41,10 +40,12 @@ struct HttpHeaders {
 
 typedef struct HttpHeaders HttpHeaders;
 
+const char *find_in_header(HttpHeaders *headers, const char *const key);
+
 size_t write_headers(uint8_t *const buf, HttpHeaders *headers);
 
 struct HttpBody {
-  uint8_t *body;
+  const uint8_t *body;
   size_t len;
 };
 
@@ -88,10 +89,10 @@ typedef enum HttpMethod HttpMethod;
 
 struct HttpRequest {
   HttpMethod method;
-  const char *const url;
+  const char *url;
   HttpVersion version;
   HttpHeaders headers;
-  const uint8_t *body;
+  HttpBody body;
 };
 
 typedef struct HttpRequest HttpRequest;

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -33,7 +34,21 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
   return res;
 }
 
+size_t handle_bad_req(uint8_t *const buf, HttpRequest *req) {
+  (void)req;
+
+  HttpResponse resp = init_response(BAD_REQ);
+
+  size_t res = write_response(buf, &resp);
+
+  free_http_response(&resp);
+
+  return res;
+}
+
 size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
+  (void)req;
+
   HttpResponse resp = init_response(NOT_FOUND);
 
   size_t res = write_response(buf, &resp);
@@ -45,6 +60,7 @@ size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
 
 size_t handle_root(uint8_t *const buf, HttpRequest *req, HttpParams params,
                    AppState *state) {
+  (void)req;
   (void)params;
   (void)state;
 
@@ -59,6 +75,7 @@ size_t handle_root(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
 size_t handle_echo(uint8_t *const buf, HttpRequest *req, HttpParams params,
                    AppState *state) {
+  (void)req;
   (void)state;
 
   HttpResponse resp = init_response(OK);
@@ -90,18 +107,13 @@ size_t handle_echo(uint8_t *const buf, HttpRequest *req, HttpParams params,
 size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
                          HttpParams params, AppState *state) {
 
+  (void)params;
   (void)state;
   uint8_t body_buf[1024];
 
   // Assuming there is a user agent header
-  for (size_t i = 0; i < req->headers.headers.len; i += 1) {
-    HttpHeader *header = &req->headers.headers.ptr[i];
-
-    if (strcmp(header->key, USER_AGENT) == 0) {
-      strcpy((char *)body_buf, header->value);
-      break;
-    }
-  }
+  const char *user_agent = find_in_header(&req->headers, USER_AGENT);
+  strcpy((char *)body_buf, user_agent);
 
   HttpBody body = {
       .body = body_buf,
@@ -125,11 +137,11 @@ size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
   return res;
 }
 
-size_t handle_file(uint8_t *const buf, HttpRequest *req, HttpParams params,
-                   AppState *state) {
-  // TODO: create file path
-  char filepath[100];
+size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
+                       AppState *state) {
   assert(state->directory != NULL);
+
+  char filepath[100];
 
   char *delim =
       params[0] == '/' || state->directory[strlen(state->directory) - 1] == '/'
@@ -145,7 +157,7 @@ size_t handle_file(uint8_t *const buf, HttpRequest *req, HttpParams params,
     return handle_not_found(buf, req);
   }
 
-  // TODO: alloc correct body size
+  // alloc correct body size
   size_t size = file_stat.st_size;
 
   uint8_t *body_buf = malloc(sizeof(uint8_t) * size);
@@ -182,39 +194,97 @@ size_t handle_file(uint8_t *const buf, HttpRequest *req, HttpParams params,
   return res;
 }
 
+size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
+                        AppState *state) {
+
+  printf("%s\n", state->directory);
+  assert(state->directory != NULL);
+
+  // const char *ct = find_in_header(&req->headers, CONTENT_TYPE);
+  // if (!(ct != NULL && strcmp(ct, OCTET_STREAM) == 0)) {
+  //   return handle_bad_req(buf, req);
+  // }
+
+  char filepath[100];
+
+  char *delim =
+      params[0] == '/' || state->directory[strlen(state->directory) - 1] == '/'
+          ? ""
+          : "/";
+
+  sprintf(filepath, "%s%s%s", state->directory, delim, params);
+
+  printf("%s\n", filepath);
+
+  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+
+  if (fd == -1) {
+    printf("INVALID: open returned an error <%i>", errno);
+    exit(1);
+  }
+
+  write(fd, req->body.body, req->body.len);
+
+  HttpResponse resp = init_response(CREATED);
+  size_t res = write_response_helper(buf, &resp);
+  free_http_response(&resp);
+
+  return res;
+}
+
 #define MAX_MATCH_COUNT 1
 
-size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state) {
-  fnPtr routes_ptr[] = {
-      &handle_root,
-      &handle_echo,
-      &handle_user_agent,
-      &handle_file,
-  };
+struct Route {
+  fnPtr fn;
+  const char *route;
+  HttpMethod method;
+};
 
-  // USING REGEX TO MATCH ROUTES
-  char *routes_str[] = {
-      "/",
-      "/echo/*",
-      "/user-agent",
-      "/files/*",
+size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state) {
+
+  struct Route routes[] = {
+      {
+          .fn = &handle_root,
+          .route = "/",
+          .method = GET,
+      },
+      {
+          .fn = &handle_echo,
+          .route = "/echo/*",
+          .method = GET,
+      },
+      {
+          .fn = &handle_user_agent,
+          .route = "/user-agent",
+          .method = GET,
+      },
+      {
+          .fn = &handle_file_get,
+          .route = "/files/*",
+          .method = GET,
+      },
+      {
+          .fn = &handle_file_post,
+          .route = "/files/*",
+          .method = POST,
+      },
   };
 
   printf("request for %s\n", req->url);
 
-  for (size_t i = 0; i < ARRAY_SIZE(routes_str); i += 1) {
+  for (size_t i = 0; i < ARRAY_SIZE(routes); i += 1) {
+    struct Route *curr = &routes[i];
 
-    size_t res = starts_with_wildcard(req->url, routes_str[i]);
-
-    if (res == ALL_MATCH) {
-      printf("match no wildcard -- <%s>\n", routes_str[i]);
-      return routes_ptr[i](buf, req, NULL, state);
-    } else if (res == NO_MATCH) {
+    size_t res = starts_with_wildcard(req->url, curr->route);
+    if (res == (size_t)NO_MATCH) {
       continue;
-    } else {
-      printf("match with wildcard -- <%s>\n", routes_str[i]);
+    } else if (res == (size_t)ALL_MATCH && curr->method == req->method) {
+      printf("match no wildcard -- <%s>\n", curr->route);
+      return curr->fn(buf, req, NULL, state);
+    } else if (curr->method == req->method) {
+      printf("match with wildcard -- <%zu> -- <%s>\n", i, curr->route);
       HttpParams params = req->url + res;
-      return routes_ptr[i](buf, req, params, state);
+      return curr->fn(buf, req, params, state);
     }
   }
 
