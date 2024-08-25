@@ -15,7 +15,7 @@ set -e # Exit early if any commands fail
 (
   cd "$(dirname "$0")" # Ensure compile steps are run within the repository directory
   # gcc -lcurl -lz -o /tmp/codecrafters-build-http-server-c app/*.c
-  gcc -lz -Wall -Wextra -Werror -ggdb -o /tmp/codecrafters-build-http-server-c app/*.c
+  gcc -Wall -Wextra -Werror -ggdb -o /tmp/codecrafters-build-http-server-c app/*.c -lz 
 )
 
 # Copied from .codecrafters/run.sh

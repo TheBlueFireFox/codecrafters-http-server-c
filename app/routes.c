@@ -19,49 +19,45 @@ typedef size_t (*fnPtr)(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
 // SEE: stackoverflow
 // https://stackoverflow.com/questions/49622938/gzip-compression-using-zlib-into-buffer
-int compress_to_gzip(const uint8_t *input, int inputSize, uint8_t *output,
-                     int outputSize) {
-  z_stream zs;
-  zs.zalloc = Z_NULL;
-  zs.zfree = Z_NULL;
-  zs.opaque = Z_NULL;
-  zs.avail_in = (uInt)inputSize;
-  zs.next_in = (Bytef *)input;
-  zs.avail_out = (uInt)outputSize;
-  zs.next_out = (Bytef *)output;
-
-  // hard to believe they don't have a macro for gzip encoding, "Add 16" is the
-  // best thing zlib can do: "Add 16 to windowBits to write a simple gzip header
-  // and trailer around the compressed data instead of a zlib wrapper"
-  deflateInit2(&zs, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16, 8,
+uint8_t *compress_to_gzip(const uint8_t *data, int input_size, int *len) {
+  z_stream stream = {0};
+  deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1F, 8,
                Z_DEFAULT_STRATEGY);
-  deflate(&zs, Z_FINISH);
-  deflateEnd(&zs);
-  return zs.total_out;
+  size_t max_len = deflateBound(&stream, input_size);
+  uint8_t *output = malloc(sizeof(uint8_t) * max_len);
+  memset(output, 0, max_len);
+  stream.next_in = (Bytef *)data;
+  stream.avail_in = input_size;
+  stream.next_out = (Bytef *)output;
+  stream.avail_out = max_len;
+  deflate(&stream, Z_FINISH);
+  *len = stream.total_out;
+  deflateEnd(&stream);
+
+  return output;
 }
 
 size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
-  char content_len[100];
   HttpBody org_body = resp->body;
-  HttpBody new_body = org_body;
+
   uint8_t *new_buf_body = NULL;
-  resp->body = new_body;
 
   if (resp->headers.encoding == GZIP && resp->body.body != NULL) {
-    HttpHeader content_length = {
+    HttpHeader content_encoding = {
         .key = CONTENT_ENCODING,
         .value = GZIP_ENCODING,
     };
-    push_vector_HttpHeader(&resp->headers.headers, content_length);
+    push_vector_HttpHeader(&resp->headers.headers, content_encoding);
 
-    new_buf_body = calloc(org_body.len, sizeof(uint8_t));
-    assert(new_body.body != NULL);
-    new_body.len = compress_to_gzip(org_body.body, org_body.len, new_buf_body,
-                                    org_body.len);
-
-    new_body.body = new_buf_body;
+    int len = 0;
+    new_buf_body = compress_to_gzip(org_body.body, org_body.len, &len);
+    resp->body = (HttpBody){
+        .body = new_buf_body,
+        .len = len,
+    };
   }
 
+  char content_len[100];
   if (resp->body.body != NULL && resp->body.len > 0) {
     sprintf(content_len, "%zu", resp->body.len);
 
@@ -73,6 +69,7 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
   }
 
   size_t res = write_response(buf, resp);
+
   resp->body = org_body;
   if (new_buf_body != NULL) {
     free(new_buf_body);
