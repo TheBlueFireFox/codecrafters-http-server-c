@@ -3,10 +3,12 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -15,6 +17,14 @@
 #include "thread.h"
 
 #define INITIAL_BUFFER 16 * 1014
+
+bool is_running = true;
+
+void sig_int_handler(int signum) {
+  (void)signum;
+  printf("sigint\n");
+  is_running = false;
+}
 
 void handle_client(int client_fd, AppState *state) {
   pthread_t self = pthread_self();
@@ -56,14 +66,16 @@ void handle_client(int client_fd, AppState *state) {
     }
   }
 
-  uint8_t out_buf[INITIAL_BUFFER];
-  memset(out_buf, 0, INITIAL_BUFFER);
+  uint8_t *out_buf = calloc(INITIAL_BUFFER, sizeof(uint8_t));
 
   s = handle_routes(out_buf, &req, state);
 
   write(client_fd, out_buf, s);
 
   free_http_request(&req);
+
+  free(out_buf);
+  free(in_buf);
 
   close(client_fd);
 }
@@ -76,10 +88,17 @@ struct ThreadFunctionHelper {
 void thread_function(void *args) {
   struct ThreadFunctionHelper *state = args;
   handle_client(state->client_fd, state->state);
+  free(state);
 }
 
 int main(int argc, char *argv[]) {
-  char *directory = NULL;
+  // Disable output buffering
+  setbuf(stdout, NULL);
+  setbuf(stderr, NULL);
+
+  signal(SIGINT, sig_int_handler);
+
+  char *directory = "/tmp";
   // get directory from
   for (int i = 1; i < argc; i += 1) {
     if (strcmp(argv[i], "--directory") == 0) {
@@ -88,19 +107,15 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // Disable output buffering
-  setbuf(stdout, NULL);
-  setbuf(stderr, NULL);
-
-  // You can use print statements as follows for debugging, they'll be visible
-  // when running tests.
-  printf("Logs from your program will appear here!\n");
+  printf("ONLINE\n");
 
   ThreadPool pool = init_threadpool(&thread_function);
 
   AppState state = {
       .directory = directory,
   };
+
+  fd_set rfds;
 
   int server_fd;
   struct sockaddr_in client_addr;
@@ -137,11 +152,31 @@ int main(int argc, char *argv[]) {
     printf("Listen failed: %s \n", strerror(errno));
     return 1;
   }
-
-  printf("Waiting for a client to connect...\n");
   client_addr_len = sizeof(client_addr);
 
-  while (1) {
+  printf("Waiting for a client to connect...\n");
+
+  while (is_running) {
+
+    // set select time on the socket
+    struct timeval tv;
+    tv.tv_sec = 2;
+    tv.tv_usec = 0; // 500000;
+
+    FD_ZERO(&rfds);
+    FD_SET(server_fd, &rfds);
+    int ret = select(server_fd + 1, &rfds, NULL, NULL, &tv);
+
+    if (ret == -1 && errno == EINTR) {
+      break;
+    } else if (ret == -1) {
+      printf("ERROR: select() errored out\n");
+      is_running = false;
+      break;
+    } else if (ret == 0) {
+      continue;
+    }
+
     int client_fd_raw =
         accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
 
@@ -162,6 +197,8 @@ int main(int argc, char *argv[]) {
     // move client to thread pool
     add_threaded_task(&pool, tf);
   }
+
+  printf("ctrl c called\n");
 
   free_threadpool(&pool);
 

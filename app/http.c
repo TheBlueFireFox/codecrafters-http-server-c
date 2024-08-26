@@ -20,9 +20,13 @@ const char *find_in_header(HttpHeaders *headers, const char *const key) {
   return NULL;
 }
 
-#define STRVAL(X, Y)                                                           \
-  memcpy(X, Y, strlen(Y));                                                     \
-  return strlen(Y)
+void push_header_headers(HttpHeaders *headers, const char *const key,
+                         const char *const value) {
+  push_vector_HttpHeader(&headers->headers, (HttpHeader){
+                                                .value = value,
+                                                .key = key,
+                                            });
+}
 
 // // Status line
 // HTTP/1.1  // HTTP version
@@ -39,6 +43,10 @@ size_t write_endline(uint8_t *const buf) {
   memcpy(buf, ENDLINE, strlen(ENDLINE));
   return strlen(ENDLINE);
 }
+
+#define STRVAL(X, Y)                                                           \
+  memcpy(X, Y, strlen(Y));                                                     \
+  return strlen(Y)
 
 size_t write_version(uint8_t *const buf, HttpVersion status) {
   switch (status) {
@@ -147,12 +155,7 @@ size_t parse_headers(const uint8_t *buf, HttpHeaders *headers) {
 
     s += end_value - key + 2;
 
-    HttpHeader header = {
-        .key = key,
-        .value = value,
-    };
-
-    push_vector_HttpHeader(&headers->headers, header);
+    push_header_headers(headers, key, value);
   }
 
   const char *content_encoding = find_in_header(headers, ACCEPT_ENCODING);
@@ -256,6 +259,11 @@ HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding) {
   };
 
   return resp;
+}
+
+void push_header_response(HttpResponse *resp, const char *const key,
+                          const char *const value) {
+  push_header_headers(&resp->headers, key, value);
 }
 
 void free_http_response(HttpResponse *resp) {

@@ -50,6 +50,8 @@ typedef struct HttpHeaders HttpHeaders;
 
 const char *find_in_header(HttpHeaders *headers, const char *const key);
 
+void push_header_headers(HttpHeaders *headers, const char *const key, const char*const value);
+
 size_t write_headers(uint8_t *const buf, HttpHeaders *headers);
 
 struct HttpBody {
@@ -69,6 +71,7 @@ struct HttpResponse {
 typedef struct HttpResponse HttpResponse;
 
 HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding);
+void push_header_response(HttpResponse *resp, const char* const key, const char* const value);
 void free_http_response(HttpResponse *resp);
 
 size_t write_response(uint8_t *const buf, HttpResponse *resp);

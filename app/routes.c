@@ -17,60 +17,63 @@ typedef const char *HttpParams;
 typedef size_t (*fnPtr)(uint8_t *const buf, HttpRequest *req, HttpParams params,
                         AppState *state);
 
+#define GZIP_DEFLATE(X)                                                        \
+  deflateInit2(X, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1F, 8,                  \
+               Z_DEFAULT_STRATEGY);
+
+uint8_t compress_to_gzip_max_len(int len) {
+  z_stream stream = {0};
+  GZIP_DEFLATE(&stream);
+  return deflateBound(&stream, len);
+}
+
 // SEE: stackoverflow
 // https://stackoverflow.com/questions/49622938/gzip-compression-using-zlib-into-buffer
-uint8_t *compress_to_gzip(const uint8_t *data, int input_size, int *len) {
+int compress_to_gzip(const uint8_t *data, int input_size, uint8_t *output) {
   z_stream stream = {0};
-  deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1F, 8,
-               Z_DEFAULT_STRATEGY);
+  GZIP_DEFLATE(&stream);
   size_t max_len = deflateBound(&stream, input_size);
-  uint8_t *output = malloc(sizeof(uint8_t) * max_len);
-  memset(output, 0, max_len);
+
   stream.next_in = (Bytef *)data;
   stream.avail_in = input_size;
   stream.next_out = (Bytef *)output;
   stream.avail_out = max_len;
+
   deflate(&stream, Z_FINISH);
-  *len = stream.total_out;
+  int len = stream.total_out;
   deflateEnd(&stream);
 
-  return output;
+  return len;
 }
 
 size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
+  char content_length[100];
   HttpBody org_body = resp->body;
-
   uint8_t *new_buf_body = NULL;
+  bool has_body = resp->body.body != NULL && resp->body.len > 0;
 
-  if (resp->headers.encoding == GZIP && resp->body.body != NULL) {
-    HttpHeader content_encoding = {
-        .key = CONTENT_ENCODING,
-        .value = GZIP_ENCODING,
-    };
-    push_vector_HttpHeader(&resp->headers.headers, content_encoding);
+  if (has_body && resp->headers.encoding == GZIP) {
+    push_header_response(resp, CONTENT_ENCODING, GZIP_ENCODING);
 
-    int len = 0;
-    new_buf_body = compress_to_gzip(org_body.body, org_body.len, &len);
+    int len = compress_to_gzip_max_len(org_body.len);
+    new_buf_body = calloc(len, sizeof(uint8_t));
+
+    len = compress_to_gzip(org_body.body, org_body.len, new_buf_body);
     resp->body = (HttpBody){
         .body = new_buf_body,
         .len = len,
     };
   }
 
-  char content_len[100];
-  if (resp->body.body != NULL && resp->body.len > 0) {
-    sprintf(content_len, "%zu", resp->body.len);
-
-    HttpHeader content_length = {
-        .key = CONTENT_LENGTH,
-        .value = content_len,
-    };
-    push_vector_HttpHeader(&resp->headers.headers, content_length);
+  if (has_body) {
+    sprintf(content_length, "%zu", resp->body.len);
+    push_header_response(resp, CONTENT_LENGTH, content_length);
   }
 
   size_t res = write_response(buf, resp);
 
   resp->body = org_body;
+
   if (new_buf_body != NULL) {
     free(new_buf_body);
   }
@@ -124,19 +127,12 @@ size_t handle_echo(uint8_t *const buf, HttpRequest *req, HttpParams params,
   uint8_t body_buf[1024];
   strcpy((char *)body_buf, params);
 
-  HttpBody body = {
+  resp.body = (HttpBody){
       .body = body_buf,
       .len = strlen(params),
   };
 
-  HttpHeader content_type = {
-      .key = CONTENT_TYPE,
-      .value = TEXT_PLAIN,
-  };
-
-  push_vector_HttpHeader(&resp.headers.headers, content_type);
-
-  resp.body = body;
+  push_header_response(&resp, CONTENT_TYPE, TEXT_PLAIN);
 
   size_t res = write_response_helper(buf, &resp);
 
@@ -156,20 +152,14 @@ size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
   const char *user_agent = find_in_header(&req->headers, USER_AGENT);
   strcpy((char *)body_buf, user_agent);
 
-  HttpBody body = {
-      .body = body_buf,
-      .len = strlen((char *)body_buf),
-  };
-
-  HttpHeader content_type = {
-      .key = CONTENT_TYPE,
-      .value = TEXT_PLAIN,
-  };
-
   HttpResponse resp = init_response(OK, req->headers.encoding);
-  push_vector_HttpHeader(&resp.headers.headers, content_type);
 
-  resp.body = body;
+  push_header_response(&resp, CONTENT_TYPE, TEXT_PLAIN);
+
+  resp.body = (HttpBody){
+      .body = body_buf,
+      .len = strlen(user_agent),
+  };
 
   size_t res = write_response_helper(buf, &resp);
 
@@ -212,20 +202,13 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
   assert(size_read == size);
 
-  HttpBody body = {
+  HttpResponse resp = init_response(OK, req->headers.encoding);
+  push_header_response(&resp, CONTENT_TYPE, OCTET_STREAM);
+
+  resp.body = (HttpBody){
       .body = body_buf,
       .len = size,
   };
-
-  HttpHeader content_type = {
-      .key = CONTENT_TYPE,
-      .value = OCTET_STREAM,
-  };
-
-  HttpResponse resp = init_response(OK, req->headers.encoding);
-  push_vector_HttpHeader(&resp.headers.headers, content_type);
-
-  resp.body = body;
 
   res = write_response_helper(buf, &resp);
 
@@ -248,8 +231,6 @@ size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
           : "/";
 
   sprintf(filepath, "%s%s%s", state->directory, delim, params);
-
-  printf("%s\n", filepath);
 
   int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
@@ -275,40 +256,40 @@ struct Route {
   HttpMethod method;
 };
 
-size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state) {
+static const struct Route routes[] = {
+    {
+        .fn = &handle_root,
+        .route = "/",
+        .method = GET,
+    },
+    {
+        .fn = &handle_echo,
+        .route = "/echo/*",
+        .method = GET,
+    },
+    {
+        .fn = &handle_user_agent,
+        .route = "/user-agent",
+        .method = GET,
+    },
+    {
+        .fn = &handle_file_get,
+        .route = "/files/*",
+        .method = GET,
+    },
+    {
+        .fn = &handle_file_post,
+        .route = "/files/*",
+        .method = POST,
+    },
+};
 
-  struct Route routes[] = {
-      {
-          .fn = &handle_root,
-          .route = "/",
-          .method = GET,
-      },
-      {
-          .fn = &handle_echo,
-          .route = "/echo/*",
-          .method = GET,
-      },
-      {
-          .fn = &handle_user_agent,
-          .route = "/user-agent",
-          .method = GET,
-      },
-      {
-          .fn = &handle_file_get,
-          .route = "/files/*",
-          .method = GET,
-      },
-      {
-          .fn = &handle_file_post,
-          .route = "/files/*",
-          .method = POST,
-      },
-  };
+size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state) {
 
   printf("request for %s\n", req->url);
 
   for (size_t i = 0; i < ARRAY_SIZE(routes); i += 1) {
-    struct Route *curr = &routes[i];
+    const struct Route *const curr = &routes[i];
 
     size_t res = starts_with_wildcard(req->url, curr->route);
     if (res == (size_t)NO_MATCH) {
