@@ -22,7 +22,7 @@ bool is_running = true;
 
 void sig_int_handler(int signum) {
   (void)signum;
-  printf("sigint\n");
+  printf("sigint <%i>\n", signum);
   is_running = false;
 }
 
@@ -115,8 +115,6 @@ int main(int argc, char *argv[]) {
       .directory = directory,
   };
 
-  fd_set rfds;
-
   int server_fd;
   struct sockaddr_in client_addr;
   socklen_t client_addr_len;
@@ -156,15 +154,16 @@ int main(int argc, char *argv[]) {
 
   printf("Waiting for a client to connect...\n");
 
+  fd_set rfds;
+  FD_ZERO(&rfds);
   while (is_running) {
 
+    FD_SET(server_fd, &rfds);
     // set select time on the socket
     struct timeval tv;
-    tv.tv_sec = 2;
-    tv.tv_usec = 0; // 500000;
+    tv.tv_sec = 0;
+    tv.tv_usec = 500000;
 
-    FD_ZERO(&rfds);
-    FD_SET(server_fd, &rfds);
     int ret = select(server_fd + 1, &rfds, NULL, NULL, &tv);
 
     if (ret == -1 && errno == EINTR) {
@@ -197,8 +196,6 @@ int main(int argc, char *argv[]) {
     // move client to thread pool
     add_threaded_task(&pool, tf);
   }
-
-  printf("ctrl c called\n");
 
   free_threadpool(&pool);
 
