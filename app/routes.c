@@ -17,26 +17,19 @@ typedef const char *HttpParams;
 typedef size_t (*fnPtr)(uint8_t *const buf, HttpRequest *req, HttpParams params,
                         AppState *state);
 
-#define GZIP_DEFLATE(X)                                                        \
-  deflateInit2(X, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1F, 8,                  \
-               Z_DEFAULT_STRATEGY);
-
-uint8_t compress_to_gzip_max_len(int len) {
-  z_stream stream = {0};
-  GZIP_DEFLATE(&stream);
-  return deflateBound(&stream, len);
-}
-
 // SEE: stackoverflow
 // https://stackoverflow.com/questions/49622938/gzip-compression-using-zlib-into-buffer
-int compress_to_gzip(const uint8_t *data, int input_size, uint8_t *output) {
+int compress_to_gzip(const uint8_t *data, int input_size, uint8_t **output) {
   z_stream stream = {0};
-  GZIP_DEFLATE(&stream);
+  deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1F, 8,
+               Z_DEFAULT_STRATEGY);
+
   size_t max_len = deflateBound(&stream, input_size);
+  *output = calloc(max_len, sizeof(uint8_t));
 
   stream.next_in = (Bytef *)data;
   stream.avail_in = input_size;
-  stream.next_out = (Bytef *)output;
+  stream.next_out = (Bytef *)*output;
   stream.avail_out = max_len;
 
   deflate(&stream, Z_FINISH);
@@ -55,10 +48,8 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
   if (has_body && resp->headers.encoding == GZIP) {
     push_header_response(resp, CONTENT_ENCODING, GZIP_ENCODING);
 
-    int len = compress_to_gzip_max_len(org_body.len);
-    new_buf_body = calloc(len, sizeof(uint8_t));
+    int len = compress_to_gzip(org_body.body, org_body.len, &new_buf_body);
 
-    len = compress_to_gzip(org_body.body, org_body.len, new_buf_body);
     resp->body = (HttpBody){
         .body = new_buf_body,
         .len = len,
