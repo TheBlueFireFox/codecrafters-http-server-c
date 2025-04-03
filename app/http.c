@@ -9,6 +9,10 @@
 
 #define ENDLINE "\r\n"
 
+#define STRVAL(X, Y)                                                           \
+  memcpy(X, Y, strlen(Y));                                                     \
+  return strlen(Y)
+
 const char *find_in_header(HttpHeaders *headers, const char *const key) {
   for (size_t i = 0; i < headers->headers.len; i += 1) {
     HttpHeader *header = &headers->headers.ptr[i];
@@ -39,33 +43,23 @@ void push_header_headers(HttpHeaders *headers, const char *const key,
 //
 // // Response body (empty)
 
-size_t write_endline(uint8_t *const buf) {
-  memcpy(buf, ENDLINE, strlen(ENDLINE));
-  return strlen(ENDLINE);
-}
+size_t write_endline(uint8_t *const buf) { STRVAL(buf, ENDLINE); }
 
-#define STRVAL(X, Y)                                                           \
-  memcpy(X, Y, strlen(Y));                                                     \
-  return strlen(Y)
+#define MAP(X, Y, Z)                                                           \
+  case X:                                                                      \
+    STRVAL(Z, Y);
 
 size_t write_version(uint8_t *const buf, HttpVersion status) {
-  switch (status) {
-  case HTTP1_1:
-    STRVAL(buf, "HTTP/1.1");
-  }
+  switch (status) { MAP(HTTP1_1, "HTTP/1.1", buf) }
   return 0;
 }
 
 size_t write_status(uint8_t *const buf, HttpStatus status) {
   switch (status) {
-  case OK:
-    STRVAL(buf, "200 OK");
-  case CREATED:
-    STRVAL(buf, "201 Created");
-  case BAD_REQ:
-    STRVAL(buf, "400 Bad Request");
-  case NOT_FOUND:
-    STRVAL(buf, "404 Not Found");
+    MAP(OK, "200 OK", buf);
+    MAP(CREATED, "201 Created", buf);
+    MAP(BAD_REQ, "400 Bad Request", buf);
+    MAP(NOT_FOUND, "404 Not Found", buf);
   default:
     printf("INVALID OR NOT SUPPORTED HTTP Status sent");
     exit(1);
