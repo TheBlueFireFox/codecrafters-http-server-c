@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "vector.h"
 
@@ -41,16 +42,24 @@ typedef enum HttpContentEncoding HttpContentEncoding;
 
 INIT_VECTOR(HttpHeader);
 
+struct HttpConnectionState {
+  bool active;
+};
+
+typedef struct HttpConnectionState HttpConnectionState;
+
 struct HttpHeaders {
   Vector_HttpHeader headers;
   HttpContentEncoding encoding;
+  HttpConnectionState connection;
 };
 
 typedef struct HttpHeaders HttpHeaders;
 
 const char *find_in_header(HttpHeaders *headers, const char *const key);
 
-void push_header_headers(HttpHeaders *headers, const char *const key, const char*const value);
+void push_header_headers(HttpHeaders *headers, const char *const key,
+                         const char *const value);
 
 size_t write_headers(uint8_t *const buf, HttpHeaders *headers);
 
@@ -71,7 +80,8 @@ struct HttpResponse {
 typedef struct HttpResponse HttpResponse;
 
 HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding);
-void push_header_response(HttpResponse *resp, const char* const key, const char* const value);
+void push_header_response(HttpResponse *resp, const char *const key,
+                          const char *const value);
 void free_http_response(HttpResponse *resp);
 
 size_t write_response(uint8_t *const buf, HttpResponse *resp);
@@ -115,9 +125,13 @@ void free_http_request(HttpRequest *req);
 // headers
 #define CONTENT_TYPE "Content-Type"
 #define CONTENT_LENGTH "Content-Length"
+#define CONNECTION "Connection"
 #define USER_AGENT "User-Agent"
 #define CONTENT_ENCODING "Content-Encoding"
 #define ACCEPT_ENCODING "Accept-Encoding"
+
+// connection state
+#define CONNECTION_CLOSE "close"
 
 // content types
 #define TEXT_PLAIN "text/plain"

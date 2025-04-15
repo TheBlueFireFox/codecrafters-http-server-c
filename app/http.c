@@ -200,10 +200,9 @@ HttpRequest parse_request(const uint8_t *buf) {
 
   s += 2;
 
-  HttpHeaders headers = {
-      .headers = init_vector_HttpHeader(),
-      .encoding = NO_ENCODING,
-  };
+  HttpHeaders headers = {.headers = init_vector_HttpHeader(),
+                         .encoding = NO_ENCODING,
+                         .connection = {.active = true}};
 
   s += parse_headers(buf + s, &headers);
 
@@ -213,6 +212,14 @@ HttpRequest parse_request(const uint8_t *buf) {
   }
 
   s += 2;
+
+  const char *connection_state = find_in_header(&headers, CONNECTION);
+
+  if (connection_state != NULL && strncmp(connection_state, CONNECTION_CLOSE,
+                                          strlen(CONNECTION_CLOSE)) == 0) {
+    // Connection is currently closed
+    headers.connection.active = false;
+  }
 
   const char *content_len = find_in_header(&headers, CONTENT_LENGTH);
 
