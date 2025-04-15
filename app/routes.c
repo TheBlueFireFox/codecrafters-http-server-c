@@ -75,7 +75,8 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
 
 size_t handle_bad_req(uint8_t *const buf, HttpRequest *req) {
 
-  HttpResponse resp = init_response(BAD_REQ, req->headers.encoding);
+  HttpResponse resp =
+      init_response(BAD_REQ, req->headers.encoding, req->headers.connection);
 
   size_t res = write_response(buf, &resp);
 
@@ -86,7 +87,8 @@ size_t handle_bad_req(uint8_t *const buf, HttpRequest *req) {
 
 size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
 
-  HttpResponse resp = init_response(NOT_FOUND, req->headers.encoding);
+  HttpResponse resp =
+      init_response(NOT_FOUND, req->headers.encoding, req->headers.connection);
 
   size_t res = write_response(buf, &resp);
 
@@ -100,7 +102,8 @@ size_t handle_root(uint8_t *const buf, HttpRequest *req, HttpParams params,
   (void)params;
   (void)state;
 
-  HttpResponse resp = init_response(OK, req->headers.encoding);
+  HttpResponse resp =
+      init_response(OK, req->headers.encoding, req->headers.connection);
 
   size_t res = write_response_helper(buf, &resp);
 
@@ -113,7 +116,8 @@ size_t handle_echo(uint8_t *const buf, HttpRequest *req, HttpParams params,
                    AppState *state) {
   (void)state;
 
-  HttpResponse resp = init_response(OK, req->headers.encoding);
+  HttpResponse resp =
+      init_response(OK, req->headers.encoding, req->headers.connection);
 
   uint8_t body_buf[1024];
   strcpy((char *)body_buf, params);
@@ -143,7 +147,8 @@ size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
   const char *user_agent = find_in_header(&req->headers, USER_AGENT);
   strcpy((char *)body_buf, user_agent);
 
-  HttpResponse resp = init_response(OK, req->headers.encoding);
+  HttpResponse resp =
+      init_response(OK, req->headers.encoding, req->headers.connection);
 
   push_header_response(&resp, CONTENT_TYPE, TEXT_PLAIN);
 
@@ -193,7 +198,8 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
   assert(size_read == size);
 
-  HttpResponse resp = init_response(OK, req->headers.encoding);
+  HttpResponse resp =
+      init_response(OK, req->headers.encoding, req->headers.connection);
   push_header_response(&resp, CONTENT_TYPE, OCTET_STREAM);
 
   resp.body = (HttpBody){
@@ -232,7 +238,8 @@ size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
   write(fd, req->body.body, req->body.len);
 
-  HttpResponse resp = init_response(CREATED, req->headers.encoding);
+  HttpResponse resp =
+      init_response(CREATED, req->headers.encoding, req->headers.connection);
   size_t res = write_response_helper(buf, &resp);
   free_http_response(&resp);
 

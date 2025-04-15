@@ -79,7 +79,7 @@ struct HttpResponse {
 
 typedef struct HttpResponse HttpResponse;
 
-HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding);
+HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding, HttpConnectionState connection_status);
 void push_header_response(HttpResponse *resp, const char *const key,
                           const char *const value);
 void free_http_response(HttpResponse *resp);
@@ -131,6 +131,7 @@ void free_http_request(HttpRequest *req);
 #define ACCEPT_ENCODING "Accept-Encoding"
 
 // connection state
+#define CONNECTION_ALIVE "Keep-Alive"
 #define CONNECTION_CLOSE "close"
 
 // content types

@@ -248,11 +248,22 @@ void free_http_request(HttpRequest *req) {
   free_vector_HttpHeader(&req->headers.headers);
 }
 
-HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding) {
-  HttpHeaders headers = {
-      .headers = init_vector_HttpHeader(),
-      .encoding = encoding,
-  };
+HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding,
+                           HttpConnectionState connection_status) {
+  HttpHeaders headers = {.headers = init_vector_HttpHeader(),
+                         .encoding = encoding,
+                         .connection = connection_status};
+
+  HttpHeader connection_status_header;
+  connection_status_header.key = CONNECTION;
+  connection_status_header.value = CONNECTION_ALIVE;
+
+  if (!connection_status.active) {
+    connection_status_header.value = CONNECTION_CLOSE;
+  }
+
+  push_vector_HttpHeader(&headers.headers, connection_status_header);
+
   HttpBody body = {
       .body = NULL,
       .len = 0,
