@@ -90,7 +90,7 @@ void handle_client_requests(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
 void handle_client(int client_fd, AppState *state) {
   pthread_t self = pthread_self();
 
-  printf("Client connected to %lu\n", self);
+  printf("Client connected to thread_id <%lu>\n", self);
 
   uint8_t *in_buf = calloc(INITIAL_BUFFER, sizeof(uint8_t));
   uint8_t *out_buf = calloc(INITIAL_BUFFER, sizeof(uint8_t));
@@ -104,6 +104,8 @@ void handle_client(int client_fd, AppState *state) {
     if (s == 0)
       break;
   }
+
+  printf("Client connection from thread_id <%lu>\n", self);
 
   free(out_buf);
   free(in_buf);
