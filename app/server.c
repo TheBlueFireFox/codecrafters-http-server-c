@@ -13,16 +13,18 @@
 
 struct ThreadFunctionHelper {
   int client_fd;
+  bool *server_running;
   AppState *state;
 };
 
 void thread_function(void *args) {
   struct ThreadFunctionHelper *state = args;
-  handle_client(state->client_fd, state->state);
+  handle_client(state->client_fd, state->state, state->server_running);
   free(state);
 }
 
-void send_task(int client_fd, AppState *state, ThreadPool *pool) {
+void send_task(int client_fd, AppState *state, bool *server_running,
+               ThreadPool *pool) {
 
   struct ThreadFunctionHelper *tf = malloc(sizeof(struct ThreadFunctionHelper));
 
@@ -30,6 +32,7 @@ void send_task(int client_fd, AppState *state, ThreadPool *pool) {
 
   tf->client_fd = client_fd;
   tf->state = state;
+  tf->server_running = server_running;
 
   printf("Client connection added to the thread pool\n");
 
@@ -110,7 +113,6 @@ int init_bindings(int *server_fd_ipv4, int *server_fd_ipv6) {
 int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
                 bool *is_running) {
   fd_set rfds;
-  FD_ZERO(&rfds);
 
   const int max_server_fd = fd_ipv4 > fd_ipv6 ? fd_ipv4 : fd_ipv6;
 
@@ -127,6 +129,7 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
   socklen_t client_addr_len_v6 = sizeof(client_addr_len_v6);
 
   while (*is_running) {
+    FD_ZERO(&rfds);
     FD_SET(fd_ipv4, &rfds);
     FD_SET(fd_ipv6, &rfds);
 
@@ -159,7 +162,7 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
       break;
     }
 
-    send_task(client_fd, state, pool);
+    send_task(client_fd, state, is_running, pool);
   }
 
   return 0;

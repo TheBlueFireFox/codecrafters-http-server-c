@@ -20,6 +20,7 @@ static void *thread_start(void *arg) {
     if (task != NULL) {
       // work on task
       info->fn(task);
+      continue;
     }
 
     // wait until queue has something to do
@@ -126,7 +127,7 @@ void add_task(ThreadQueue *queue, void *task) {
 }
 
 void *pop_task(ThreadQueue *queue) {
-  void* task = NULL;
+  void *task = NULL;
   ThreadTask *task_node = NULL;
 
   pthread_mutex_lock(&queue->mutex);

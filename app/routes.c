@@ -297,7 +297,7 @@ size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state) {
 
     HttpMethod method = req->method & curr->method;
 
-    if (method == 1) {
+    if (method == 0) {
       continue;
     }
 

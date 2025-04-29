@@ -1,11 +1,14 @@
 #include "client.h"
+#include <asm-generic/errno-base.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <pthread.h>
 #include <string.h>
-#include <netinet/in.h>
+#include <sys/select.h>
 #include <sys/socket.h>
-#include <netinet/ip.h>
 #include <unistd.h>
 
 size_t load_request(int client_fd, uint8_t **in_buf, size_t *buffer_size,
@@ -44,13 +47,49 @@ size_t load_request(int client_fd, uint8_t **in_buf, size_t *buffer_size,
 }
 
 void handle_client_requests(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
-                            size_t org_buffer_size, AppState *state) {
+                            size_t org_buffer_size, AppState *state,
+                            bool *server_running) {
+  fd_set rfds;
   HttpRequest req;
   size_t *buffer_size = &org_buffer_size;
 
+  // set select time on the socket
+
   bool active = true;
 
-  while (active) {
+  const size_t MAX_TIMEOUT_S = 5;
+  const size_t MAX_TIMEOUT_US = MAX_TIMEOUT_S * 1000000;
+  const suseconds_t INTERVAL = 500000;
+
+  // counts iterations between messages => creates a timeout after a while
+  size_t iterCount = MAX_TIMEOUT_US;
+
+  while (active && *server_running && iterCount > 0) {
+    FD_ZERO(&rfds);
+    FD_SET(client_fd, &rfds);
+
+    struct timeval tv = {
+        .tv_sec = 0,
+        .tv_usec = INTERVAL,
+    };
+
+    iterCount -= INTERVAL;
+
+    int ret = select(client_fd + 1, &rfds, NULL, NULL, &tv);
+
+    switch (ret) {
+    case -1:
+      if (errno != EINTR) {
+        printf("ERROR: select() errored out\n");
+      }
+      break;
+    case 0:
+      // we timed out back to looping
+      continue;
+    }
+
+    iterCount = MAX_TIMEOUT_US;
+
     req = (HttpRequest){0};
 
     size_t s = load_request(client_fd, in_buf, buffer_size, &req);
@@ -69,8 +108,7 @@ void handle_client_requests(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
   }
 }
 
-
-void handle_client(int client_fd, AppState *state) {
+void handle_client(int client_fd, AppState *state, bool *server_running) {
 
   pthread_t self = pthread_self();
 
@@ -79,7 +117,8 @@ void handle_client(int client_fd, AppState *state) {
   uint8_t *in_buf = calloc(INITIAL_BUFFER, sizeof(uint8_t));
   uint8_t *out_buf = calloc(INITIAL_BUFFER, sizeof(uint8_t));
 
-  handle_client_requests(client_fd, &in_buf, out_buf, INITIAL_BUFFER, state);
+  handle_client_requests(client_fd, &in_buf, out_buf, INITIAL_BUFFER, state,
+                         server_running);
 
   shutdown(client_fd, SHUT_RDWR);
 
