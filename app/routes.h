@@ -6,7 +6,7 @@
 #include "http.h"
 
 struct AppState {
-  char *directory;
+  const char *directory;
 };
 
 typedef struct AppState AppState;

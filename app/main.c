@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
 
   signal(SIGINT, sig_int_handler);
 
-  char *directory = "/tmp";
+  const char *directory = "/tmp";
   // get directory from
   for (int i = 1; i < argc; i += 1) {
     if (strcmp(argv[i], "--directory") == 0) {

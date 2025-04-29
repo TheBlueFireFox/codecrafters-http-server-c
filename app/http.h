@@ -1,9 +1,9 @@
 #ifndef HTTP
 #define HTTP
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 #include "vector.h"
 
@@ -79,7 +79,8 @@ struct HttpResponse {
 
 typedef struct HttpResponse HttpResponse;
 
-HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding, HttpConnectionState connection_status);
+HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding,
+                           HttpConnectionState connection_status);
 void push_header_response(HttpResponse *resp, const char *const key,
                           const char *const value);
 void free_http_response(HttpResponse *resp);
@@ -119,7 +120,7 @@ struct HttpRequest {
 
 typedef struct HttpRequest HttpRequest;
 
-HttpRequest parse_request(const uint8_t *buf);
+HttpRequest parse_request(uint8_t *buf);
 
 void free_http_request(HttpRequest *req);
 

@@ -19,7 +19,7 @@ typedef size_t (*fnPtr)(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
 // SEE: stackoverflow
 // https://stackoverflow.com/questions/49622938/gzip-compression-using-zlib-into-buffer
-int compress_to_gzip(const uint8_t *data, int input_size, uint8_t **output) {
+int compress_to_gzip(uint8_t *const data, int input_size, uint8_t **output) {
   z_stream stream = {0};
   deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1F, 8,
                Z_DEFAULT_STRATEGY);
@@ -48,7 +48,7 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
   if (has_body && resp->headers.encoding == GZIP) {
     push_header_response(resp, CONTENT_ENCODING, GZIP_ENCODING);
 
-    int len = compress_to_gzip(org_body.body, org_body.len, &new_buf_body);
+    int len = compress_to_gzip(new_buf_body, org_body.len, &new_buf_body);
 
     resp->body = (HttpBody){
         .body = new_buf_body,
@@ -170,7 +170,7 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
   char filepath[100];
 
-  char *delim =
+  const char *delim =
       params[0] == '/' || state->directory[strlen(state->directory) - 1] == '/'
           ? ""
           : "/";
@@ -222,7 +222,7 @@ size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
   char filepath[100];
 
-  char *delim =
+  const char *delim =
       params[0] == '/' || state->directory[strlen(state->directory) - 1] == '/'
           ? ""
           : "/";

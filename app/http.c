@@ -98,11 +98,11 @@ size_t write_response(uint8_t *const buf, HttpResponse *resp) {
 }
 
 size_t parse_method(const uint8_t *buf, HttpMethod *meth) {
-  char *methods_str[] = {"GET", "POST"};
+  const char *const methods_str[] = {"GET", "POST"};
   HttpMethod methods_enum[] = {GET, POST};
 
   for (size_t i = 0; i < ARRAY_SIZE(methods_enum); i += 1) {
-    bool res = starts_with((char *)buf, methods_str[i]);
+    bool res = starts_with((const char *)buf, methods_str[i]);
     if (res) {
       *meth = methods_enum[i];
       return strlen(methods_str[i]);
@@ -116,7 +116,7 @@ size_t parse_method(const uint8_t *buf, HttpMethod *meth) {
 size_t parse_version(const uint8_t *buf, HttpVersion *version) {
   const char *const VERSION = "HTTP/1.1";
 
-  if (!starts_with((char *)buf, VERSION)) {
+  if (!starts_with((const char *)buf, VERSION)) {
     printf("INVALID: missing VERSION\n");
     exit(1);
   }
@@ -130,7 +130,7 @@ size_t parse_version(const uint8_t *buf, HttpVersion *version) {
 // Host: localhost:4221\r\n     // Header that specifies the server's host and
 // User-Agent: curl/7.64.1\r\n  // Header that describes the client's user
 // Accept: */*\r\n              // Header that specifies which media types
-size_t parse_headers(const uint8_t *buf, HttpHeaders *headers) {
+size_t parse_headers(uint8_t *buf, HttpHeaders *headers) {
   size_t s = 0;
   // end of headers
   while (!(*(buf + s) == '\r' && *(buf + s + 1) == '\n')) {
@@ -163,7 +163,7 @@ size_t parse_headers(const uint8_t *buf, HttpHeaders *headers) {
   return s;
 }
 
-HttpRequest parse_request(const uint8_t *buf) {
+HttpRequest parse_request(uint8_t *buf) {
   // GET                          // HTTP method
   // /index.html                  // Request target
   // HTTP/1.1                     // HTTP version
@@ -187,7 +187,7 @@ HttpRequest parse_request(const uint8_t *buf) {
   HttpVersion version;
   s += parse_version(buf + s, &version);
 
-  if (!starts_with((char *)buf + s, ENDLINE)) {
+  if (!starts_with((const char *)buf + s, ENDLINE)) {
     printf("INVALID: line does not stop with \\r\\n\n");
     exit(1);
   }
@@ -200,7 +200,7 @@ HttpRequest parse_request(const uint8_t *buf) {
 
   s += parse_headers(buf + s, &headers);
 
-  if (!starts_with((char *)buf + s, ENDLINE)) {
+  if (!starts_with((const char *)buf + s, ENDLINE)) {
     printf("INVALID: headers don't stop with \\r\\n\n");
     exit(1);
   }
