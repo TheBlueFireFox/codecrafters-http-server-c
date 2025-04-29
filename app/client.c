@@ -30,31 +30,49 @@ size_t load_request(int client_fd, uint8_t **in_buf, size_t *buffer_size,
     }
 
     // get new lenght requirement
-    if (req->body.len > 0) {
-      // there is a body attached to this msg
-      //
-      // body attached check msg buffer size and if required expand it
-      // some more
-      size_t header_len = *in_buf - req->body.body;
-      *buffer_size = header_len + req->body.len;
-      *in_buf = realloc(*in_buf, *buffer_size);
-      memset((*in_buf) + s, 0, (*buffer_size) - s);
+    if (req->body.len == 0) {
+      continue;
     }
+    // there is a body attached to this msg
+    //
+    // body attached check msg buffer size and if required expand it
+    // some more
+    size_t header_len = *in_buf - req->body.body;
+    *buffer_size = header_len + req->body.len;
+    *in_buf = realloc(*in_buf, *buffer_size);
+    memset((*in_buf) + s, 0, (*buffer_size) - s);
   }
 
   return s;
 }
 
-void handle_client_requests(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
-                            size_t org_buffer_size, AppState *state,
-                            bool *server_running) {
+bool handle_client_request(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
+                           size_t *buffer_size, AppState *state) {
+  HttpRequest req = {0};
+
+  size_t s = load_request(client_fd, in_buf, buffer_size, &req);
+
+  if (s == 0) {
+    return false;
+  }
+
+  s = handle_routes(out_buf, &req, state);
+
+  write(client_fd, out_buf, s);
+
+  bool active = req.headers.connection.active;
+
+  free_http_request(&req);
+  return !active;
+}
+
+void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
+                        size_t org_buffer_size, AppState *state,
+                        bool *server_running) {
   fd_set rfds;
-  HttpRequest req;
   size_t *buffer_size = &org_buffer_size;
 
   // set select time on the socket
-
-  bool active = true;
 
   const size_t MAX_TIMEOUT_S = 5;
   const size_t MAX_TIMEOUT_US = MAX_TIMEOUT_S * 1000000;
@@ -63,7 +81,7 @@ void handle_client_requests(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
   // counts iterations between messages => creates a timeout after a while
   size_t iterCount = MAX_TIMEOUT_US;
 
-  while (active && *server_running && iterCount > 0) {
+  while (*server_running && iterCount > 0) {
     FD_ZERO(&rfds);
     FD_SET(client_fd, &rfds);
 
@@ -76,34 +94,20 @@ void handle_client_requests(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
 
     int ret = select(client_fd + 1, &rfds, NULL, NULL, &tv);
 
-    switch (ret) {
-    case -1:
+    if (ret == 0) {
+      // we timed out back to looping
+      continue;
+    } else if (ret == -1) {
       if (errno != EINTR) {
         printf("ERROR: select() errored out\n");
       }
       break;
-    case 0:
-      // we timed out back to looping
-      continue;
     }
 
     iterCount = MAX_TIMEOUT_US;
-
-    req = (HttpRequest){0};
-
-    size_t s = load_request(client_fd, in_buf, buffer_size, &req);
-
-    if (s == 0) {
+    if (!handle_client_request(client_fd, in_buf, out_buf, buffer_size, state)) {
       break;
     }
-
-    s = handle_routes(out_buf, &req, state);
-
-    write(client_fd, out_buf, s);
-
-    active = req.headers.connection.active;
-
-    free_http_request(&req);
   }
 }
 
@@ -116,8 +120,8 @@ void handle_client(int client_fd, AppState *state, bool *server_running) {
   uint8_t *in_buf = calloc(INITIAL_BUFFER, sizeof(uint8_t));
   uint8_t *out_buf = calloc(INITIAL_BUFFER, sizeof(uint8_t));
 
-  handle_client_requests(client_fd, &in_buf, out_buf, INITIAL_BUFFER, state,
-                         server_running);
+  handle_client_loop(client_fd, &in_buf, out_buf, INITIAL_BUFFER, state,
+                     server_running);
 
   shutdown(client_fd, SHUT_RDWR);
 
