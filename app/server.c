@@ -152,9 +152,11 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
     if (FD_ISSET(fd_ipv4, &rfds)) {
       client_fd =
           accept(fd_ipv4, (struct sockaddr *)&client_addr, &client_addr_len);
+      printf("connected via IPv4\n");
     } else if (FD_ISSET(fd_ipv6, &rfds)) {
       client_fd = accept(fd_ipv6, (struct sockaddr *)&client_addr_v6,
                          &client_addr_len_v6);
+      printf("connected via IPv6\n");
     } else {
       printf("no connections ready to process\n");
       continue;
