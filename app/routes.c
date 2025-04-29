@@ -246,6 +246,17 @@ size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
   return res;
 }
 
+size_t handle_file(uint8_t *const buf, HttpRequest *req, HttpParams params,
+                   AppState *state) {
+  switch (req->method) {
+  case GET:
+    return handle_file_get(buf, req, params, state);
+  case POST:
+    return handle_file_post(buf, req, params, state);
+  }
+  return 0;
+}
+
 #define MAX_MATCH_COUNT 1
 
 struct Route {
@@ -271,14 +282,9 @@ static const struct Route routes[] = {
         .method = GET,
     },
     {
-        .fn = &handle_file_get,
+        .fn = &handle_file,
         .route = "/files/*",
-        .method = GET,
-    },
-    {
-        .fn = &handle_file_post,
-        .route = "/files/*",
-        .method = POST,
+        .method = GET | POST,
     },
 };
 
@@ -289,13 +295,22 @@ size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state) {
   for (size_t i = 0; i < ARRAY_SIZE(routes); i += 1) {
     const struct Route *const curr = &routes[i];
 
+    HttpMethod method = req->method & curr->method;
+
+    if (method == 1) {
+      continue;
+    }
+
     size_t res = starts_with_wildcard(req->url, curr->route);
+
     if (res == (size_t)NO_MATCH) {
       continue;
-    } else if (res == (size_t)ALL_MATCH && curr->method == req->method) {
+    }
+
+    if (res == (size_t)ALL_MATCH) {
       printf("match no wildcard -- <%s>\n", curr->route);
       return curr->fn(buf, req, NULL, state);
-    } else if (curr->method == req->method) {
+    } else {
       printf("match with wildcard -- <%zu> -- <%s>\n", i, curr->route);
       HttpParams params = req->url + res;
       return curr->fn(buf, req, params, state);

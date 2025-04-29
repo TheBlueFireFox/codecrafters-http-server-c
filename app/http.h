@@ -101,9 +101,10 @@ size_t write_response(uint8_t *const buf, HttpResponse *resp);
 //
 // // Request body (empty)
 
+// Every method needs a different bit entry
 enum HttpMethod {
-  GET,
-  POST,
+  GET = 0b01,
+  POST = 0b10,
 };
 
 typedef enum HttpMethod HttpMethod;
