@@ -40,7 +40,7 @@ enum HttpContentEncoding {
 
 typedef enum HttpContentEncoding HttpContentEncoding;
 
-INIT_VECTOR(HttpHeader);
+INIT_VECTOR(HttpHeader)
 
 struct HttpConnectionState {
   bool active;
@@ -104,8 +104,8 @@ size_t write_response(uint8_t *const buf, HttpResponse *resp);
 
 // Every method needs a different bit entry
 enum HttpMethod {
-  GET = 0b01,
-  POST = 0b10,
+  GET = 0x01,
+  POST = 0x02,
 };
 
 typedef enum HttpMethod HttpMethod;

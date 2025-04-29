@@ -36,7 +36,7 @@ ThreadPool init_threadpool(ThreadFunction fn) {
 
   ThreadPoolState *state = malloc(sizeof(ThreadPoolState));
   state->is_active = true;
-  state->mutex = (pthread_rwlock_t){};
+  state->mutex = (pthread_rwlock_t){0};
   state->queue = init_queue();
   state->fn = fn;
 
@@ -77,8 +77,6 @@ void free_threadpool(ThreadPool *pool) {
 
 ThreadQueue init_queue() {
   ThreadQueue queue = {
-      .cond = {},
-      .mutex = {},
       .head = NULL,
       .last = NULL,
   };
