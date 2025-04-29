@@ -63,7 +63,7 @@ bool handle_client_request(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
   bool active = req.headers.connection.active;
 
   free_http_request(&req);
-  return !active;
+  return active;
 }
 
 void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
