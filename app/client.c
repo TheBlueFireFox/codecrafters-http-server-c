@@ -1,5 +1,4 @@
 #include "client.h"
-#include <asm-generic/errno-base.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
