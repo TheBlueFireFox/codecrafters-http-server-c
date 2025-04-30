@@ -1,4 +1,4 @@
-[![progress-banner](https://backend.codecrafters.io/progress/http-server/454e6e50-ea7f-4b4a-87e5-d8d2636444b9)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+[![progress-banner](https://backend.codecrafters.io/progress/http-server/c4dac3f8-4932-4ea3-8ee3-7b2ebda7578d)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
 This is a starting point for C solutions to the
 ["Build Your Own HTTP server" Challenge](https://app.codecrafters.io/courses/http-server/overview).
@@ -31,8 +31,8 @@ Time to move on to the next stage!
 
 Note: This section is for stages 2 and beyond.
 
-1. Ensure you have `gcc` installed locally
+1. Ensure you have `cmake` installed locally
 1. Run `./your_program.sh` to run your program, which is implemented in
-   `app/server.c`.
+   `src/main.c`.
 1. Commit your changes and run `git push origin master` to submit your solution
    to CodeCrafters. Test output will be streamed to your terminal.
