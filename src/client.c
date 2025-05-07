@@ -1,12 +1,13 @@
 #include "client.h"
+#include "utils.h"
 #include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <poll.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -69,36 +70,30 @@ bool handle_client_request(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
 void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
                         size_t org_buffer_size, AppState *state,
                         bool *server_running) {
-  fd_set rfds;
+  struct pollfd fds[1] = {{
+      .fd = client_fd,
+      .events = POLLIN,
+      .revents = 0,
+  }};
   size_t *buffer_size = &org_buffer_size;
 
-  // set select time on the socket
-
-  const suseconds_t INTERVAL = 500000;
-  const size_t MAX_TIMEOUT_US = INTERVAL * 10;
+  const suseconds_t INTERVAL = 5000;
+  const size_t MAX_TIMEOUT_US = INTERVAL * 100;
 
   // counts iterations between messages => creates a timeout after a while
   size_t iterCount = MAX_TIMEOUT_US;
 
   while (*server_running && iterCount > 0) {
-    FD_ZERO(&rfds);
-    FD_SET(client_fd, &rfds);
-
-    struct timeval tv = {
-        .tv_sec = 0,
-        .tv_usec = INTERVAL,
-    };
-
     iterCount -= INTERVAL;
 
-    int ret = select(client_fd + 1, &rfds, NULL, NULL, &tv);
+    int ret = poll(fds, ARRAY_SIZE(fds), INTERVAL);
 
     if (ret == 0) {
       // we timed out back to looping
       continue;
     } else if (ret == -1) {
       if (errno != EINTR) {
-        printf("ERROR: select() errored out\n");
+        printf("ERROR: poll() errored out\n");
       }
       break;
     }

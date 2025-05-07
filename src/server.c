@@ -2,16 +2,16 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <poll.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/select.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include "client.h"
 #include "routes.h"
 #include "thread.h"
+#include "utils.h"
 
 struct ThreadFunctionHelper {
   int client_fd;
@@ -116,9 +116,17 @@ int init_bindings(int *server_fd_ipv4, int *server_fd_ipv6) {
 
 int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
                 bool *is_running) {
-  fd_set rfds_read;
 
-  const int max_server_fd = fd_ipv4 > fd_ipv6 ? fd_ipv4 : fd_ipv6;
+  struct pollfd fds[2] = {{
+                              .fd = fd_ipv4,
+                              .events = POLLIN,
+                              .revents = 0,
+                          },
+                          {
+                              .fd = fd_ipv6,
+                              .events = POLLIN,
+                              .revents = 0,
+                          }};
 
   struct sockaddr_in client_addr;
   struct sockaddr_in6 client_addr_v6;
@@ -127,24 +135,12 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
   socklen_t client_addr_len_v6 = sizeof(client_addr_len_v6);
 
   while (*is_running) {
-    // set select time on the socket
-    // needs to be reset as
-    // select writes the values back into this
-    struct timeval tv = {
-        .tv_sec = 2,
-        .tv_usec = 0,
-    };
-
-    FD_ZERO(&rfds_read);
-    FD_SET(fd_ipv4, &rfds_read);
-    FD_SET(fd_ipv6, &rfds_read);
-
-    int ret = select(max_server_fd + 1, &rfds_read, NULL, NULL, &tv);
+    int ret = poll(fds, ARRAY_SIZE(fds), 500);
 
     if (ret == -1 && errno == EINTR) {
       break;
     } else if (ret == -1) {
-      printf("ERROR: select() errored out\n");
+      printf("ERROR: poll() errored out\n");
       *is_running = false;
       break;
     } else if (ret == 0) {
@@ -153,11 +149,11 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
 
     int client_fd = -1;
 
-    if (FD_ISSET(fd_ipv4, &rfds_read)) {
+    if (fds[0].revents & POLLIN) {
       client_fd =
           accept(fd_ipv4, (struct sockaddr *)&client_addr, &client_addr_len);
       printf("connected via IPv4\n");
-    } else if (FD_ISSET(fd_ipv6, &rfds_read)) {
+    } else if (fds[1].revents & POLLIN) {
       client_fd = accept(fd_ipv6, (struct sockaddr *)&client_addr_v6,
                          &client_addr_len_v6);
       printf("connected via IPv6\n");
