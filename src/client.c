@@ -74,9 +74,8 @@ void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
 
   // set select time on the socket
 
-  const size_t MAX_TIMEOUT_S = 5;
-  const size_t MAX_TIMEOUT_US = MAX_TIMEOUT_S * 1000000;
   const suseconds_t INTERVAL = 500000;
+  const size_t MAX_TIMEOUT_US = INTERVAL * 10;
 
   // counts iterations between messages => creates a timeout after a while
   size_t iterCount = MAX_TIMEOUT_US;
@@ -105,7 +104,8 @@ void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
     }
 
     iterCount = MAX_TIMEOUT_US;
-    if (!handle_client_request(client_fd, in_buf, out_buf, buffer_size, state)) {
+    if (!handle_client_request(client_fd, in_buf, out_buf, buffer_size,
+                               state)) {
       break;
     }
   }

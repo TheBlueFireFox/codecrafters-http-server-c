@@ -19,6 +19,7 @@ struct ThreadTaskQueue {
   pthread_cond_t cond;
   ThreadTask *head;
   ThreadTask *last;
+  ThreadTask *left;
 };
 
 typedef struct ThreadTaskQueue ThreadQueue;
@@ -44,11 +45,12 @@ typedef struct ThreadPoolState ThreadPoolState;
 
 struct ThreadPool {
   ThreadPoolState *state;
-  pthread_t thread[THREADPOOL_SIZE];
+  pthread_t* thread;
+  size_t size;
 };
 typedef struct ThreadPool ThreadPool;
 
-ThreadPool init_threadpool(ThreadFunction fn);
+ThreadPool init_threadpool(ThreadFunction fn, size_t size);
 void add_threaded_task(ThreadPool *pool, void *task);
 
 void free_threadpool(ThreadPool *pool);

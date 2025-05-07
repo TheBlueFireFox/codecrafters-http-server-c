@@ -32,9 +32,12 @@ static void *thread_start(void *arg) {
   return NULL;
 }
 
-ThreadPool init_threadpool(ThreadFunction fn) {
+ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
+
+  pthread_t *thread = calloc(size, sizeof(pthread_t));
 
   ThreadPoolState *state = malloc(sizeof(ThreadPoolState));
+
   state->is_active = true;
   state->mutex = (pthread_rwlock_t){0};
   state->queue = init_queue();
@@ -43,11 +46,12 @@ ThreadPool init_threadpool(ThreadFunction fn) {
   pthread_rwlock_init(&state->mutex, NULL);
 
   ThreadPool pool = {
-      .thread = {0},
+      .thread = thread,
       .state = state,
+      .size = size,
   };
 
-  for (size_t i = 0; i < THREADPOOL_SIZE; i += 1) {
+  for (size_t i = 0; i < pool.size; i += 1) {
     // INIT Threadpool
     pthread_create(&pool.thread[i], NULL, &thread_start, state);
   }
@@ -66,19 +70,21 @@ void free_threadpool(ThreadPool *pool) {
   // wake all threads
   pthread_cond_broadcast(&pool->state->queue.cond);
 
-  for (size_t i = 0; i < THREADPOOL_SIZE; i += 1) {
+  for (size_t i = 0; i < pool->size; i += 1) {
     pthread_join(pool->thread[i], NULL);
   }
 
   free_queue(&pool->state->queue);
   pthread_rwlock_destroy(&pool->state->mutex);
   free(pool->state);
+  free(pool->thread);
 }
 
 ThreadQueue init_queue() {
   ThreadQueue queue = {
       .head = NULL,
       .last = NULL,
+      .left = NULL,
   };
 
   pthread_mutex_init(&queue.mutex, NULL);
@@ -101,6 +107,13 @@ void free_queue(ThreadQueue *queue) {
     free(curr);
   }
 
+  while (queue->left != NULL) {
+    ThreadTask *curr = queue->left;
+    queue->left = curr->next;
+    free(curr);
+  }
+
+  queue->left = NULL;
   queue->head = NULL;
   queue->last = NULL;
 
@@ -110,9 +123,21 @@ void free_queue(ThreadQueue *queue) {
 
 void add_task(ThreadQueue *queue, void *task) {
   pthread_mutex_lock(&queue->mutex);
-  ThreadTask *task_node = malloc(sizeof(ThreadTask));
+  ThreadTask *task_node = NULL;
+
+  if (queue->left != NULL) {
+    // pop available tasks
+    task_node = queue->left;
+    queue->left = queue->left->next;
+  }
+
+  if (task_node == NULL) {
+    task_node = malloc(sizeof(ThreadTask));
+  }
+
   task_node->payload = task;
   task_node->next = NULL;
+
   queue->last = task_node;
 
   if (queue->head == NULL) {
@@ -140,10 +165,11 @@ void *pop_task(ThreadQueue *queue) {
   if (queue->head == NULL) {
     queue->last = NULL;
   }
+
+  task_node->next = queue->left;
+  queue->left = task_node;
+
 POP_CLEAN_UP:
   pthread_mutex_unlock(&queue->mutex);
-  if (task_node != NULL) {
-    free(task_node);
-  }
   return task;
 }

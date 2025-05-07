@@ -64,7 +64,7 @@ int internal_bind(int *server_fd, int domain, struct sockaddr *addr,
     return 1;
   }
 
-  const int connection_backlog = 5;
+  const int connection_backlog = 50;
   if (listen(*server_fd, connection_backlog) != 0) {
     printf("Listen failed: %s \n", strerror(errno));
     return 1;
@@ -102,27 +102,23 @@ int init_bindings(int *server_fd_ipv4, int *server_fd_ipv6) {
     printf("Unable to bind ipv4\n");
     return 1;
   }
+  printf("Bound ipv4 at %d\n", PORT);
 
   if (bind_ipv6(server_fd_ipv6) != 0) {
     close(*server_fd_ipv4);
     printf("Unable to bind ipv6\n");
     return 1;
   }
+  printf("Bound ipv6 at %d\n", PORT);
 
   return 0;
 }
 
 int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
                 bool *is_running) {
-  fd_set rfds;
+  fd_set rfds_read;
 
   const int max_server_fd = fd_ipv4 > fd_ipv6 ? fd_ipv4 : fd_ipv6;
-
-  // set select time on the socket
-  struct timeval tv = {
-      .tv_sec = 0,
-      .tv_usec = 500000,
-  };
 
   struct sockaddr_in client_addr;
   struct sockaddr_in6 client_addr_v6;
@@ -131,11 +127,19 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
   socklen_t client_addr_len_v6 = sizeof(client_addr_len_v6);
 
   while (*is_running) {
-    FD_ZERO(&rfds);
-    FD_SET(fd_ipv4, &rfds);
-    FD_SET(fd_ipv6, &rfds);
+    // set select time on the socket
+    // needs to be reset as
+    // select writes the values back into this
+    struct timeval tv = {
+        .tv_sec = 2,
+        .tv_usec = 0,
+    };
 
-    int ret = select(max_server_fd + 1, &rfds, NULL, NULL, &tv);
+    FD_ZERO(&rfds_read);
+    FD_SET(fd_ipv4, &rfds_read);
+    FD_SET(fd_ipv6, &rfds_read);
+
+    int ret = select(max_server_fd + 1, &rfds_read, NULL, NULL, &tv);
 
     if (ret == -1 && errno == EINTR) {
       break;
@@ -149,11 +153,11 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
 
     int client_fd = -1;
 
-    if (FD_ISSET(fd_ipv4, &rfds)) {
+    if (FD_ISSET(fd_ipv4, &rfds_read)) {
       client_fd =
           accept(fd_ipv4, (struct sockaddr *)&client_addr, &client_addr_len);
       printf("connected via IPv4\n");
-    } else if (FD_ISSET(fd_ipv6, &rfds)) {
+    } else if (FD_ISSET(fd_ipv6, &rfds_read)) {
       client_fd = accept(fd_ipv6, (struct sockaddr *)&client_addr_v6,
                          &client_addr_len_v6);
       printf("connected via IPv6\n");
@@ -175,7 +179,7 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
 int start_server(AppState *state, bool *is_running) {
   printf("ONLINE\n");
 
-  ThreadPool pool = init_threadpool(&thread_function);
+  ThreadPool pool = init_threadpool(&thread_function, THREADPOOL_SIZE);
 
   int server_fd_ipv4;
   int server_fd_ipv6;
