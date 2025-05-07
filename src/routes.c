@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -166,7 +165,7 @@ size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
 
 size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
                        AppState *state) {
-  assert(state->directory != NULL);
+  ASSERT(state->directory != NULL);
 
   char filepath[100];
 
@@ -188,15 +187,15 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
   size_t size = file_stat.st_size;
 
   uint8_t *body_buf = malloc(sizeof(uint8_t) * size);
-  assert(body_buf != NULL);
+  ASSERT(body_buf != NULL);
 
   // read file into buffe
   int fd = open(filepath, O_RDONLY);
-  assert(fd != -1);
+  ASSERT(fd != -1);
 
   size_t size_read = read(fd, body_buf, size);
 
-  assert(size_read == size);
+  ASSERT(size_read == size);
 
   HttpResponse resp =
       init_response(OK, req->headers.encoding, req->headers.connection);
@@ -218,7 +217,7 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
 size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
                         AppState *state) {
 
-  assert(state->directory != NULL);
+  ASSERT(state->directory != NULL);
 
   char filepath[100];
 

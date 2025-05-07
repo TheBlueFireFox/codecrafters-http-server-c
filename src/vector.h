@@ -1,9 +1,9 @@
 #ifndef VECTOR
 #define VECTOR
 
-#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "utils.h"
 
 #define START_SIZE 4
 
@@ -42,7 +42,7 @@
       vec->capacity *= 2;                                                      \
     }                                                                          \
     vec->ptr = (X *)realloc(vec->ptr, sizeof(X) * vec->capacity);              \
-    assert(vec->ptr != NULL);                                                  \
+    ASSERT(vec->ptr != NULL);                                                  \
   }                                                                            \
                                                                                \
   __attribute__((unused)) static void push_vector_##X(Vector_##X *vec,         \

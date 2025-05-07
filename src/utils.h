@@ -3,6 +3,16 @@
 #include "stdbool.h"
 #include "stdlib.h"
 
+#ifdef NDEBUG
+#define ASSERT(x)                                                              \
+  do {                                                                         \
+    (void)sizeof(x);                                                           \
+  } while (0)
+#else
+#include <assert.h>
+#define ASSERT(x) assert(x)
+#endif
+
 #define ARRAY_SIZE(X) sizeof(X) / sizeof(X[0])
 
 #define WILDCARD '*'

@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -30,7 +29,7 @@ void send_task(int client_fd, AppState *state, bool *server_running,
 
   struct ThreadFunctionHelper *tf = malloc(sizeof(struct ThreadFunctionHelper));
 
-  assert(tf != NULL);
+  ASSERT(tf != NULL);
 
   tf->client_fd = client_fd;
   tf->state = state;
