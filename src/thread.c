@@ -138,6 +138,10 @@ void add_task(ThreadQueue *queue, void *task) {
   task_node->payload = task;
   task_node->next = NULL;
 
+  if (queue->last != NULL) {
+    queue->last->next = task_node;
+  }
+
   queue->last = task_node;
 
   if (queue->head == NULL) {
