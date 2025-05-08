@@ -1,15 +1,16 @@
-#include "client.h"
-#include "utils.h"
 #include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <poll.h>
-#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <threads.h>
 #include <unistd.h>
+
+#include "client.h"
+#include "utils.h"
 
 size_t load_request(int client_fd, uint8_t **in_buf, size_t *buffer_size,
                     HttpRequest *req) {
@@ -109,7 +110,7 @@ void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
 void handle_client(int client_fd, AppState *state,
                    atomic_bool *server_running) {
 
-  pthread_t self = pthread_self();
+  thrd_t self = thrd_current();
 
   printf("Client connected to thread_id <%lu>\n", self);
 

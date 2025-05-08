@@ -1,12 +1,12 @@
-#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 #include <unistd.h>
 
 #include "thread.h"
 #include "utils.h"
 
-static void *thread_start(void *arg) {
+static int thread_start(void *arg) {
   ThreadPoolState *info = arg;
 
   while (1) {
@@ -22,17 +22,17 @@ static void *thread_start(void *arg) {
     }
 
     // wait until queue has something to do
-    pthread_mutex_lock(&info->queue.mutex);
-    pthread_cond_wait(&info->queue.cond, &info->queue.mutex);
-    pthread_mutex_unlock(&info->queue.mutex);
+    mtx_lock(&info->queue.mutex);
+    cnd_wait(&info->queue.cond, &info->queue.mutex);
+    mtx_unlock(&info->queue.mutex);
   }
 
-  return NULL;
+  return 0;
 }
 
 ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
 
-  pthread_t *thread = calloc(size, sizeof(pthread_t));
+  thrd_t *thread = calloc(size, sizeof(thrd_t));
 
   ThreadPoolState *state = malloc(sizeof(ThreadPoolState));
   state->is_active = malloc(sizeof(atomic_bool));
@@ -49,7 +49,7 @@ ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
 
   for (size_t i = 0; i < pool.size; i += 1) {
     // INIT Threadpool
-    pthread_create(&pool.thread[i], NULL, &thread_start, state);
+    thrd_create(&pool.thread[i], &thread_start, state);
   }
   return pool;
 }
@@ -62,10 +62,10 @@ void free_threadpool(ThreadPool *pool) {
   atomic_store(pool->state->is_active, false);
 
   // wake all threads
-  pthread_cond_broadcast(&pool->state->queue.cond);
+  cnd_broadcast(&pool->state->queue.cond);
 
   for (size_t i = 0; i < pool->size; i += 1) {
-    pthread_join(pool->thread[i], NULL);
+    thrd_join(pool->thread[i], NULL);
   }
 
   free_queue(&pool->state->queue);
@@ -87,14 +87,14 @@ ThreadQueue init_queue() {
   queue.buffer = calloc(THREAD_TASK_QUEUE_SIZE, sizeof(ThreadTaskPayload));
   ASSERT(queue.buffer != NULL);
 
-  pthread_mutex_init(&queue.mutex, NULL);
-  pthread_cond_init(&queue.cond, NULL);
+  mtx_init(&queue.mutex, mtx_plain);
+  cnd_init(&queue.cond);
 
   return queue;
 }
 
 void free_queue(ThreadQueue *queue) {
-  pthread_mutex_lock(&queue->mutex);
+  mtx_lock(&queue->mutex);
 
   while (queue->tail != queue->head) {
     free(queue->buffer[queue->tail]);
@@ -108,8 +108,8 @@ void free_queue(ThreadQueue *queue) {
   queue->tail = 0;
   queue->buffer = NULL;
 
-  pthread_mutex_unlock(&queue->mutex);
-  pthread_mutex_destroy(&queue->mutex);
+  mtx_unlock(&queue->mutex);
+  mtx_destroy(&queue->mutex);
 }
 
 #include <stdio.h>
@@ -145,7 +145,7 @@ void move_head(ThreadQueue *queue) {
 }
 
 void add_task(ThreadQueue *queue, void *task) {
-  pthread_mutex_lock(&queue->mutex);
+  mtx_unlock(&queue->mutex);
   ASSERT(queue->buffer != NULL);
 
   queue->buffer[queue->head] = task;
@@ -154,16 +154,16 @@ void add_task(ThreadQueue *queue, void *task) {
   printf("head %zu - tail %zu - size %zu\n", queue->head, queue->tail,
          queue->size);
 
-  pthread_mutex_unlock(&queue->mutex);
+  mtx_unlock(&queue->mutex);
 
   // start one of the waiting threads
-  pthread_cond_signal(&queue->cond);
+  cnd_signal(&queue->cond);
 }
 
 void *pop_task(ThreadQueue *queue) {
   void *task = NULL;
 
-  pthread_mutex_lock(&queue->mutex);
+  mtx_unlock(&queue->mutex);
   if (queue->tail == queue->head) {
     goto POP_TASK_UNLOCK;
   }
@@ -174,6 +174,6 @@ void *pop_task(ThreadQueue *queue) {
   queue->tail = (queue->tail + 1) % queue->size;
 
 POP_TASK_UNLOCK:
-  pthread_mutex_unlock(&queue->mutex);
+  mtx_unlock(&queue->mutex);
   return task;
 }

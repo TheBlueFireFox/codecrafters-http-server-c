@@ -1,7 +1,7 @@
 #ifndef THREAD
 #define THREAD
 
-#include <pthread.h>
+#include <threads.h>
 #include <stdatomic.h>
 #include <stddef.h>
 
@@ -11,8 +11,8 @@
 typedef void *ThreadTaskPayload;
 
 struct ThreadTaskQueue {
-  pthread_mutex_t mutex;
-  pthread_cond_t cond;
+  mtx_t mutex;
+  cnd_t cond;
   ThreadTaskPayload *buffer;
   size_t head;
   size_t tail;
@@ -41,7 +41,7 @@ typedef struct ThreadPoolState ThreadPoolState;
 
 struct ThreadPool {
   ThreadPoolState *state;
-  pthread_t *thread;
+  thrd_t *thread;
   size_t size;
 };
 typedef struct ThreadPool ThreadPool;
