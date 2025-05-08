@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,11 +14,23 @@
   memcpy(X, Y, strlen(Y));                                                     \
   return strlen(Y)
 
+static int strcmp_insensitive(const char *l, const char *r) {
+  for (size_t i = 0;; i += 1) {
+    if (l[i] == '\0' && r[i] == '\0') {
+      return true;
+    }
+
+    if (toupper(l[i]) != toupper(r[i])) {
+      return false;
+    }
+  }
+}
+
 const char *find_in_header(HttpHeaders *headers, const char *const key) {
   for (size_t i = 0; i < headers->headers.len; i += 1) {
     HttpHeader *header = &headers->headers.ptr[i];
 
-    if (strcmp(header->key, key) == 0) {
+    if (strcmp_insensitive(header->key, key)) {
       return header->value;
     }
   }
