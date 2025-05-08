@@ -14,7 +14,7 @@
 
 struct ThreadFunctionHelper {
   int client_fd;
-  bool *server_running;
+  atomic_bool *server_running;
   AppState *state;
 };
 
@@ -24,7 +24,7 @@ void thread_function(void *args) {
   free(state);
 }
 
-void send_task(int client_fd, AppState *state, bool *server_running,
+void send_task(int client_fd, AppState *state, atomic_bool *server_running,
                ThreadPool *pool) {
 
   struct ThreadFunctionHelper *tf = malloc(sizeof(struct ThreadFunctionHelper));
@@ -114,7 +114,7 @@ int init_bindings(int *server_fd_ipv4, int *server_fd_ipv6) {
 }
 
 int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
-                bool *is_running) {
+                atomic_bool *is_running) {
 
   struct pollfd fds[2] = {{
                               .fd = fd_ipv4,
@@ -133,14 +133,13 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
   socklen_t client_addr_len = sizeof(client_addr);
   socklen_t client_addr_len_v6 = sizeof(client_addr_len_v6);
 
-  while (*is_running) {
+  while (atomic_load(is_running)) {
     int ret = poll(fds, ARRAY_SIZE(fds), 500);
 
     if (ret == -1 && errno == EINTR) {
       break;
     } else if (ret == -1) {
       printf("ERROR: poll() errored out\n");
-      *is_running = false;
       break;
     } else if (ret == 0) {
       continue;
@@ -168,10 +167,12 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
     send_task(client_fd, state, is_running, pool);
   }
 
+  atomic_store(is_running, false);
+
   return 0;
 }
 
-int start_server(AppState *state, bool *is_running) {
+int start_server(AppState *state, atomic_bool *is_running) {
   printf("ONLINE\n");
 
   ThreadPool pool = init_threadpool(&thread_function, THREADPOOL_SIZE);

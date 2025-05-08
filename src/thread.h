@@ -2,7 +2,7 @@
 #define THREAD
 
 #include <pthread.h>
-#include <stdbool.h>
+#include <stdatomic.h>
 #include <stddef.h>
 
 #define THREADPOOL_SIZE 8
@@ -32,8 +32,7 @@ void *pop_task(ThreadQueue *queue);
 typedef void (*ThreadFunction)(void *);
 
 struct ThreadPoolState {
-  bool is_active;
-  pthread_rwlock_t mutex;
+  atomic_bool *is_active;
   ThreadQueue queue;
   ThreadFunction fn;
 };

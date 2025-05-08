@@ -4,12 +4,12 @@
 
 #include "server.h"
 
-bool is_running = true;
+atomic_bool *is_running = NULL;
 
 void sig_int_handler(int signum) {
   (void)signum;
   printf("sigint <%i>\n", signum);
-  is_running = false;
+  atomic_store(is_running, false);
 }
 
 int main(int argc, char *argv[]) {
@@ -18,6 +18,8 @@ int main(int argc, char *argv[]) {
   setbuf(stderr, NULL);
 
   signal(SIGINT, sig_int_handler);
+  is_running = malloc(sizeof(atomic_bool));
+  atomic_store(is_running, true);
 
   const char *directory = "/tmp";
   // get directory from
@@ -32,5 +34,9 @@ int main(int argc, char *argv[]) {
       .directory = directory,
   };
 
-  return start_server(&state, &is_running);
+  int res = start_server(&state, is_running);
+
+  free(is_running);
+
+  return res;
 }

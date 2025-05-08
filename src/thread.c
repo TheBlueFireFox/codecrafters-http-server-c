@@ -10,12 +10,7 @@ static void *thread_start(void *arg) {
   ThreadPoolState *info = arg;
 
   while (1) {
-    bool is_active = false;
-    pthread_rwlock_rdlock(&info->mutex);
-    is_active = info->is_active;
-    pthread_rwlock_unlock(&info->mutex);
-
-    if (!is_active) {
+    if (!atomic_load(info->is_active)) {
       break;
     }
 
@@ -40,13 +35,11 @@ ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
   pthread_t *thread = calloc(size, sizeof(pthread_t));
 
   ThreadPoolState *state = malloc(sizeof(ThreadPoolState));
+  state->is_active = malloc(sizeof(atomic_bool));
 
-  state->is_active = true;
-  state->mutex = (pthread_rwlock_t){0};
+  atomic_store(state->is_active, true);
   state->queue = init_queue();
   state->fn = fn;
-
-  pthread_rwlock_init(&state->mutex, NULL);
 
   ThreadPool pool = {
       .thread = thread,
@@ -66,9 +59,7 @@ void add_threaded_task(ThreadPool *pool, void *task) {
 }
 
 void free_threadpool(ThreadPool *pool) {
-  pthread_rwlock_wrlock(&pool->state->mutex);
-  pool->state->is_active = false;
-  pthread_rwlock_unlock(&pool->state->mutex);
+  atomic_store(pool->state->is_active, false);
 
   // wake all threads
   pthread_cond_broadcast(&pool->state->queue.cond);
@@ -78,7 +69,8 @@ void free_threadpool(ThreadPool *pool) {
   }
 
   free_queue(&pool->state->queue);
-  pthread_rwlock_destroy(&pool->state->mutex);
+
+  free(pool->state->is_active);
   free(pool->state);
   free(pool->thread);
 }

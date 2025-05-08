@@ -69,7 +69,7 @@ bool handle_client_request(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
 
 void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
                         size_t org_buffer_size, AppState *state,
-                        bool *server_running) {
+                        atomic_bool *server_running) {
   struct pollfd fds[1] = {{
       .fd = client_fd,
       .events = POLLIN,
@@ -83,7 +83,7 @@ void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
   // counts iterations between messages => creates a timeout after a while
   size_t iterCount = MAX_TIMEOUT_US;
 
-  while (*server_running && iterCount > 0) {
+  while (atomic_load(server_running) && iterCount > 0) {
     iterCount -= INTERVAL;
 
     int ret = poll(fds, ARRAY_SIZE(fds), INTERVAL);
@@ -106,7 +106,8 @@ void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
   }
 }
 
-void handle_client(int client_fd, AppState *state, bool *server_running) {
+void handle_client(int client_fd, AppState *state,
+                   atomic_bool *server_running) {
 
   pthread_t self = pthread_self();
 
