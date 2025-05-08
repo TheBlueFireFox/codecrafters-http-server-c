@@ -6,20 +6,17 @@
 #include <stddef.h>
 
 #define THREADPOOL_SIZE 8
+#define THREAD_TASK_QUEUE_SIZE 64
 
-struct ThreadTask {
-  void *payload;
-  struct ThreadTask *next;
-};
-
-typedef struct ThreadTask ThreadTask;
+typedef void *ThreadTaskPayload;
 
 struct ThreadTaskQueue {
   pthread_mutex_t mutex;
   pthread_cond_t cond;
-  ThreadTask *head;
-  ThreadTask *last;
-  ThreadTask *left;
+  ThreadTaskPayload *buffer;
+  size_t head;
+  size_t tail;
+  size_t size;
 };
 
 typedef struct ThreadTaskQueue ThreadQueue;
@@ -45,7 +42,7 @@ typedef struct ThreadPoolState ThreadPoolState;
 
 struct ThreadPool {
   ThreadPoolState *state;
-  pthread_t* thread;
+  pthread_t *thread;
   size_t size;
 };
 typedef struct ThreadPool ThreadPool;

@@ -1,7 +1,10 @@
-#include "thread.h"
 #include <pthread.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+
+#include "thread.h"
+#include "utils.h"
 
 static void *thread_start(void *arg) {
   ThreadPoolState *info = arg;
@@ -82,10 +85,15 @@ void free_threadpool(ThreadPool *pool) {
 
 ThreadQueue init_queue() {
   ThreadQueue queue = {
-      .head = NULL,
-      .last = NULL,
-      .left = NULL,
+      .buffer = NULL,
+      .head = 0,
+      .tail = 0,
+      .size = THREAD_TASK_QUEUE_SIZE,
   };
+
+  // add some initial size
+  queue.buffer = calloc(THREAD_TASK_QUEUE_SIZE, sizeof(ThreadTaskPayload));
+  ASSERT(queue.buffer != NULL);
 
   pthread_mutex_init(&queue.mutex, NULL);
   pthread_cond_init(&queue.cond, NULL);
@@ -95,58 +103,65 @@ ThreadQueue init_queue() {
 
 void free_queue(ThreadQueue *queue) {
   pthread_mutex_lock(&queue->mutex);
-  while (queue->head != NULL) {
 
-    if (queue->head->payload != NULL) {
-      free(queue->head->payload);
-      queue->head->payload = NULL;
-    }
-
-    ThreadTask *curr = queue->head;
-    queue->head = curr->next;
-    free(curr);
+  while (queue->tail != queue->head) {
+    free(queue->buffer[queue->tail]);
+    queue->tail = (queue->tail + 1) % queue->size;
   }
 
-  while (queue->left != NULL) {
-    ThreadTask *curr = queue->left;
-    queue->left = curr->next;
-    free(curr);
-  }
+  free(queue->buffer);
 
-  queue->left = NULL;
-  queue->head = NULL;
-  queue->last = NULL;
+  queue->size = 0;
+  queue->head = 0;
+  queue->tail = 0;
+  queue->buffer = NULL;
 
   pthread_mutex_unlock(&queue->mutex);
   pthread_mutex_destroy(&queue->mutex);
 }
 
+#include <stdio.h>
+
+void move_head(ThreadQueue *queue) {
+
+  // move up the head
+  queue->head = (queue->head + 1) % queue->size;
+
+  // we have not used up the whole buffer
+  if (queue->head != queue->tail) {
+    return;
+  }
+
+  size_t old_size = queue->size;
+  queue->size *= 2;
+
+  size_t sp = sizeof(ThreadTaskPayload);
+
+  queue->buffer = realloc(queue->buffer, queue->size * sp);
+  ASSERT(queue->buffer != NULL);
+
+  memset(queue->buffer + old_size, 0, old_size);
+
+  // move everything before tail to after the tail
+
+  size_t elem_at_end = old_size - queue->tail;
+
+  memcpy(queue->buffer + old_size, queue->buffer, elem_at_end * sp);
+  memset(queue->buffer, 0, elem_at_end * sp);
+
+  queue->head = (old_size + queue->tail) % queue->size;
+}
+
 void add_task(ThreadQueue *queue, void *task) {
   pthread_mutex_lock(&queue->mutex);
-  ThreadTask *task_node = NULL;
+  ASSERT(queue->buffer != NULL);
 
-  if (queue->left != NULL) {
-    // pop available tasks
-    task_node = queue->left;
-    queue->left = queue->left->next;
-  }
+  queue->buffer[queue->head] = task;
+  move_head(queue);
 
-  if (task_node == NULL) {
-    task_node = malloc(sizeof(ThreadTask));
-  }
+  printf("head %zu - tail %zu - size %zu\n", queue->head, queue->tail,
+         queue->size);
 
-  task_node->payload = task;
-  task_node->next = NULL;
-
-  if (queue->last != NULL) {
-    queue->last->next = task_node;
-  }
-
-  queue->last = task_node;
-
-  if (queue->head == NULL) {
-    queue->head = task_node;
-  }
   pthread_mutex_unlock(&queue->mutex);
 
   // start one of the waiting threads
@@ -155,25 +170,18 @@ void add_task(ThreadQueue *queue, void *task) {
 
 void *pop_task(ThreadQueue *queue) {
   void *task = NULL;
-  ThreadTask *task_node = NULL;
 
   pthread_mutex_lock(&queue->mutex);
-  if (queue->head == NULL) {
-    goto POP_CLEAN_UP;
+  if (queue->tail == queue->head) {
+    goto POP_TASK_UNLOCK;
   }
 
-  task_node = queue->head;
-  task = task_node->payload;
-  queue->head = task_node->next;
+  task = queue->buffer[queue->tail];
+  queue->buffer[queue->tail] = NULL;
 
-  if (queue->head == NULL) {
-    queue->last = NULL;
-  }
+  queue->tail = (queue->tail + 1) % queue->size;
 
-  task_node->next = queue->left;
-  queue->left = task_node;
-
-POP_CLEAN_UP:
+POP_TASK_UNLOCK:
   pthread_mutex_unlock(&queue->mutex);
   return task;
 }

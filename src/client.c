@@ -77,8 +77,8 @@ void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
   }};
   size_t *buffer_size = &org_buffer_size;
 
-  const suseconds_t INTERVAL = 5000;
-  const size_t MAX_TIMEOUT_US = INTERVAL * 100;
+  const suseconds_t INTERVAL = 50;
+  const size_t MAX_TIMEOUT_US = INTERVAL * 10;
 
   // counts iterations between messages => creates a timeout after a while
   size_t iterCount = MAX_TIMEOUT_US;
