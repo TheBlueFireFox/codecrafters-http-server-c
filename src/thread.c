@@ -114,7 +114,7 @@ void free_queue(ThreadQueue *queue) {
 
 #include <stdio.h>
 
-void move_head(ThreadQueue *queue) {
+static void move_head(ThreadQueue *queue) {
 
   // move up the head
   queue->head = (queue->head + 1) % queue->size;
@@ -145,7 +145,7 @@ void move_head(ThreadQueue *queue) {
 }
 
 void add_task(ThreadQueue *queue, void *task) {
-  mtx_unlock(&queue->mutex);
+  mtx_lock(&queue->mutex);
   ASSERT(queue->buffer != NULL);
 
   queue->buffer[queue->head] = task;
@@ -163,7 +163,7 @@ void add_task(ThreadQueue *queue, void *task) {
 void *pop_task(ThreadQueue *queue) {
   void *task = NULL;
 
-  mtx_unlock(&queue->mutex);
+  mtx_lock(&queue->mutex);
   if (queue->tail == queue->head) {
     goto POP_TASK_UNLOCK;
   }
