@@ -18,7 +18,8 @@ typedef size_t (*fnPtr)(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
 // SEE: stackoverflow
 // https://stackoverflow.com/questions/49622938/gzip-compression-using-zlib-into-buffer
-int compress_to_gzip(const uint8_t *const data, int input_size, uint8_t **output) {
+int compress_to_gzip(const uint8_t *const data, int input_size,
+                     uint8_t **output) {
   z_stream stream = {0};
   deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1F, 8,
                Z_DEFAULT_STRATEGY);
@@ -55,10 +56,8 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
     };
   }
 
-  if (has_body) {
-    sprintf(content_length, "%zu", resp->body.len);
-    push_header_response(resp, CONTENT_LENGTH, content_length);
-  }
+  sprintf(content_length, "%zu", resp->body.len);
+  push_header_response(resp, CONTENT_LENGTH, content_length);
 
   size_t res = write_response(buf, resp);
 
@@ -68,7 +67,6 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
     free(new_buf_body);
   }
 
-  printf("wrote response\n");
   return res;
 }
 
@@ -77,7 +75,7 @@ size_t handle_bad_req(uint8_t *const buf, HttpRequest *req) {
   HttpResponse resp =
       init_response(BAD_REQ, req->headers.encoding, req->headers.connection);
 
-  size_t res = write_response(buf, &resp);
+  size_t res = write_response_helper(buf, &resp);
 
   free_http_response(&resp);
 
@@ -89,7 +87,7 @@ size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
   HttpResponse resp =
       init_response(NOT_FOUND, req->headers.encoding, req->headers.connection);
 
-  size_t res = write_response(buf, &resp);
+  size_t res = write_response_helper(buf, &resp);
 
   free_http_response(&resp);
 
@@ -199,6 +197,7 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
   HttpResponse resp =
       init_response(OK, req->headers.encoding, req->headers.connection);
+
   push_header_response(&resp, CONTENT_TYPE, OCTET_STREAM);
 
   resp.body = (HttpBody){
@@ -209,6 +208,7 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
   res = write_response_helper(buf, &resp);
 
   free_http_response(&resp);
+  close(fd);
   free(body_buf);
 
   return res;
@@ -231,7 +231,7 @@ size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
   int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
   if (fd == -1) {
-    printf("INVALID: open returned an error <%i>", errno);
+    printf("INVALID: open returned an error <%i>\n", errno);
     exit(1);
   }
 
@@ -240,7 +240,9 @@ size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
   HttpResponse resp =
       init_response(CREATED, req->headers.encoding, req->headers.connection);
   size_t res = write_response_helper(buf, &resp);
+
   free_http_response(&resp);
+  close(fd);
 
   return res;
 }
@@ -255,8 +257,6 @@ size_t handle_file(uint8_t *const buf, HttpRequest *req, HttpParams params,
   }
   return 0;
 }
-
-#define MAX_MATCH_COUNT 1
 
 struct Route {
   fnPtr fn;
@@ -306,14 +306,15 @@ size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state) {
       continue;
     }
 
-    if (res == (size_t)ALL_MATCH) {
-      printf("match no wildcard -- <%s>\n", curr->route);
-      return curr->fn(buf, req, NULL, state);
-    } else {
+    HttpParams params = NULL;
+
+    if (res != (size_t)ALL_MATCH) {
+      params = req->url + res;
       printf("match with wildcard -- <%zu> -- <%s>\n", i, curr->route);
-      HttpParams params = req->url + res;
-      return curr->fn(buf, req, params, state);
+    } else {
+      printf("match no wildcard -- <%s>\n", curr->route);
     }
+    return curr->fn(buf, req, params, state);
   }
 
   printf("NO MATCH FOR <%s>\n", req->url);
