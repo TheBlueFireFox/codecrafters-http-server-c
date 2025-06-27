@@ -52,6 +52,7 @@ struct HttpHeaders {
   Vector_HttpHeader headers;
   HttpContentEncoding encoding;
   HttpConnectionState connection;
+  bool is_sorted;
 };
 
 typedef struct HttpHeaders HttpHeaders;

@@ -21,35 +21,72 @@
   case X:                                                                      \
     STRVAL(Z, Y);
 
-static int strcmp_insensitive(const char *l, const char *r) {
-  for (size_t i = 0;; i += 1) {
-    if (l[i] == '\0' && r[i] == '\0') {
-      return true;
-    }
-
-    if (toupper(l[i]) != toupper(r[i])) {
-      return false;
-    }
-  }
+// cmpheaders is the reference function used by qsort to sort
+// all the HttpHeaders.
+static int cmpheaders(const void *p1, const void *p2) {
+  //  The  contents of the array are sorted in ascending order according to a
+  //  comparison function pointed to by compar, which is called with two
+  //  arguments that point to the objects being compared.
+  //
+  //  The comparison function must return an integer less than, equal to, or
+  //  greater than zero if the first argument is considered to be respec‐ tively
+  //  less than, equal to, or greater than the second.  If two members compare
+  //  as equal, their order in the sorted array is undefined.
+  const HttpHeader *pi = p1;
+  const HttpHeader *pii = p2;
+  return strcasecmp(pi->key, pii->key);
 }
 
-const char *find_in_header(HttpHeaders *headers, const char *const key) {
-  for (size_t i = 0; i < headers->headers.len; i += 1) {
-    HttpHeader *header = &headers->headers.ptr[i];
+// comkey is the reference function used by bsearch to find the matching header
+// pair
+static int cmpkey(const void *key, const void *elem) {
+  //   The contents of the array should be in ascending sorted order according
+  //   to the comparison function referenced by compkey. The compkey routine is
+  //   expected to have two arguments which point to the key object and to an
+  //   array member, in that order, and should return an integer less than,
+  //   equal to, or greater than zero if the key object is found, respectively,
+  //   to be less than, to match, or be greater than the  array member.
+  const char *const *p1 = key;
+  const HttpHeader *p2 = elem;
+  return strcasecmp(*p1, p2->key);
+}
 
-    if (strcmp_insensitive(header->key, key)) {
-      return header->value;
-    }
+// sort_headers is a helper function that makes sure to sort the http headers
+// if they are not in a sorted order (this uses is_sorted to determine if the
+// array requires sorting)
+static void sort_headers(HttpHeaders *headers) {
+  if (!headers->is_sorted) {
+    qsort(headers->headers.ptr, headers->headers.len,
+          sizeof(headers->headers.ptr[0]), cmpheaders);
   }
-  return NULL;
+  headers->is_sorted = true;
+}
+
+// find_in_header will sort if required search through all the header keys for
+// the fitting key
+//
+// RETURN: NULL if not found or a ptr to the value
+const char *find_in_header(HttpHeaders *headers, const char *const key) {
+  sort_headers(headers);
+
+  void *res = bsearch(&key, headers->headers.ptr, headers->headers.len,
+                      sizeof(headers->headers.ptr[0]), cmpkey);
+  if (res == NULL) {
+    return NULL;
+  }
+  return ((const HttpHeader *)res)->value;
 }
 
 void push_header_headers(HttpHeaders *headers, const char *const key,
                          const char *const value) {
-  push_vector_HttpHeader(&headers->headers, (HttpHeader){
-                                                .value = value,
-                                                .key = key,
-                                            });
+  headers->is_sorted = false;
+
+  HttpHeader header = {
+      .value = value,
+      .key = key,
+  };
+
+  push_vector_HttpHeader(&headers->headers, header);
 }
 
 // // Status line
@@ -212,7 +249,8 @@ HttpRequest parse_request(uint8_t *buf) {
 
   HttpHeaders headers = {.headers = init_vector_HttpHeader(),
                          .encoding = NO_ENCODING,
-                         .connection = {.active = true}};
+                         .connection = {.active = true},
+                         .is_sorted = false};
 
   s += parse_headers(buf + s, &headers);
 
@@ -225,11 +263,9 @@ HttpRequest parse_request(uint8_t *buf) {
 
   const char *connection_state = find_in_header(&headers, CONNECTION);
 
-  if (connection_state != NULL && strncmp(connection_state, CONNECTION_CLOSE,
-                                          strlen(CONNECTION_CLOSE)) == 0) {
-    // Connection is currently closed
-    headers.connection.active = false;
-  }
+  // Connection is kept open or not 
+  headers.connection.active = connection_state == NULL ||
+                              strcmp(connection_state, CONNECTION_CLOSE) != 0;
 
   const char *content_len = find_in_header(&headers, CONTENT_LENGTH);
 
@@ -262,17 +298,17 @@ HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding,
                            HttpConnectionState connection_status) {
   HttpHeaders headers = {.headers = init_vector_HttpHeader(),
                          .encoding = encoding,
-                         .connection = connection_status};
+                         .connection = connection_status,
+                         .is_sorted = true};
 
-  HttpHeader connection_status_header;
-  connection_status_header.key = CONNECTION;
-  connection_status_header.value = CONNECTION_ALIVE;
+  const char *key = CONNECTION;
+  const char *value = CONNECTION_ALIVE;
 
   if (!connection_status.active) {
-    connection_status_header.value = CONNECTION_CLOSE;
+    value = CONNECTION_CLOSE;
   }
 
-  push_vector_HttpHeader(&headers.headers, connection_status_header);
+  push_header_headers(&headers, key, value);
 
   HttpBody body = {
       .body = NULL,
