@@ -11,8 +11,15 @@
 #define ENDLINE "\r\n"
 
 #define STRVAL(X, Y)                                                           \
-  memcpy(X, Y, strlen(Y));                                                     \
-  return strlen(Y)
+  do {                                                                         \
+    size_t __slen_ = strlen(Y);                                                \
+    memcpy(X, Y, __slen_);                                                     \
+    return __slen_;                                                            \
+  } while (0);
+
+#define MAP(X, Y, Z)                                                           \
+  case X:                                                                      \
+    STRVAL(Z, Y);
 
 static int strcmp_insensitive(const char *l, const char *r) {
   for (size_t i = 0;; i += 1) {
@@ -57,10 +64,6 @@ void push_header_headers(HttpHeaders *headers, const char *const key,
 // // Response body (empty)
 
 size_t write_endline(uint8_t *const buf) { STRVAL(buf, ENDLINE); }
-
-#define MAP(X, Y, Z)                                                           \
-  case X:                                                                      \
-    STRVAL(Z, Y);
 
 size_t write_version(uint8_t *const buf, HttpVersion status) {
   switch (status) { MAP(HTTP1_1, "HTTP/1.1", buf) }
