@@ -1,39 +1,25 @@
 #ifndef THREAD
 #define THREAD
 
-#include <threads.h>
 #include <stdatomic.h>
 #include <stddef.h>
+#include <threads.h>
+#include <unistd.h>
 
-#define THREADPOOL_SIZE 8
+#include "queue.h"
+
+#define THREADPOOL_SIZE sysconf(_SC_NPROCESSORS_ONLN)
 #define THREAD_TASK_QUEUE_SIZE 64
 
-typedef void *ThreadTaskPayload;
+typedef void *ThreadTask;
 
-struct ThreadTaskQueue {
-  mtx_t mutex;
-  cnd_t cond;
-  ThreadTaskPayload *buffer;
-  size_t head;
-  size_t tail;
-  size_t size;
-};
-
-typedef struct ThreadTaskQueue ThreadQueue;
-
-ThreadQueue init_queue();
-
-void free_queue(ThreadQueue *queue);
-
-void add_task(ThreadQueue *queue, void *task);
-
-void *pop_task(ThreadQueue *queue);
+INIT_QUEUE(ThreadTask)
 
 typedef void (*ThreadFunction)(void *);
 
 struct ThreadPoolState {
   atomic_bool *is_active;
-  ThreadQueue queue;
+  Queue_ThreadTask queue;
   ThreadFunction fn;
 };
 
