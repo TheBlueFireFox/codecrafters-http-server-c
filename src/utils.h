@@ -20,7 +20,11 @@ enum Level {
   ERROR,
 };
 
+#ifdef NDEBUG
+#define LEVEL WARN
+#else
 #define LEVEL INFO
+#endif
 
 #define log(level, fmt, ...)                                                   \
   do {                                                                         \
