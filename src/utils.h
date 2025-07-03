@@ -14,10 +14,10 @@
 #endif
 
 enum Level {
-  DEBUG = 1,
-  INFO = 2,
-  WARN = 3,
-  ERROR = 4,
+  DEBUG,
+  INFO,
+  WARN,
+  ERROR,
 };
 
 #define LEVEL INFO
@@ -25,9 +25,25 @@ enum Level {
 #define log(level, fmt, ...)                                                   \
   do {                                                                         \
     /* __VA_OPT__(, ) __VA_ARGS__ allows for optional __VA_ARGS__ only C23 */  \
-    if (level >= LEVEL)                                                        \
-      fprintf(stderr, "%s:%d:%s(): " fmt, __FILE_NAME__, __LINE__,                  \
+    if (level >= LEVEL) {                                                      \
+      const char *ll;                                                          \
+      switch (level) {                                                         \
+      case DEBUG:                                                              \
+        ll = "Debug";                                                          \
+        break;                                                                 \
+      case INFO:                                                               \
+        ll = "Info";                                                           \
+        break;                                                                 \
+      case WARN:                                                               \
+        ll = "Warn";                                                           \
+        break;                                                                 \
+      case ERROR:                                                              \
+        ll = "Error";                                                          \
+        break;                                                                 \
+      }                                                                        \
+      fprintf(stderr, "%s:%s:%d:%s(): " fmt, ll, __FILE_NAME__, __LINE__,      \
               __func__ __VA_OPT__(, ) __VA_ARGS__);                            \
+    }                                                                          \
   } while (0)
 
 #define debug(fmt, ...) log(DEBUG, fmt, __VA_ARGS__)
