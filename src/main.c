@@ -8,7 +8,7 @@ atomic_bool *is_running = NULL;
 
 void sig_int_handler(int signum) {
   (void)signum;
-  printf("sigint <%i>\n", signum);
+  info("sigint <%i>\n", signum);
   atomic_store(is_running, false);
 }
 

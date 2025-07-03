@@ -13,6 +13,28 @@
 #define ASSERT(x) assert(x)
 #endif
 
+enum Level {
+  DEBUG = 1,
+  INFO = 2,
+  WARN = 3,
+  ERROR = 4,
+};
+
+#define LEVEL INFO
+
+#define log(level, fmt, ...)                                                   \
+  do {                                                                         \
+    /* __VA_OPT__(, ) __VA_ARGS__ allows for optional __VA_ARGS__ only C23 */  \
+    if (level >= LEVEL)                                                        \
+      fprintf(stderr, "%s:%d:%s(): " fmt, __FILE_NAME__, __LINE__,                  \
+              __func__ __VA_OPT__(, ) __VA_ARGS__);                            \
+  } while (0)
+
+#define debug(fmt, ...) log(DEBUG, fmt, __VA_ARGS__)
+#define info(fmt, ...) log(INFO, fmt, __VA_ARGS__)
+#define warn(fmt, ...) log(WARN, fmt, __VA_ARGS__)
+#define error(fmt, ...) log(ERROR, fmt, __VA_ARGS__)
+
 #define ARRAY_SIZE(X) sizeof(X) / sizeof(X[0])
 
 #define WILDCARD '*'

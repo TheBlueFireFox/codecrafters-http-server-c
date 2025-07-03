@@ -231,7 +231,7 @@ size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
   int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
   if (fd == -1) {
-    printf("INVALID: open returned an error <%i>\n", errno);
+    error("INVALID: open returned an error <%i>\n", errno);
     exit(1);
   }
 
@@ -289,7 +289,7 @@ static const struct Route routes[] = {
 
 size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state) {
 
-  printf("request for %s\n", req->url);
+  debug("request for %s\n", req->url);
 
   for (size_t i = 0; i < ARRAY_SIZE(routes); i += 1) {
     const struct Route *const curr = &routes[i];
@@ -310,13 +310,13 @@ size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state) {
 
     if (res != (size_t)ALL_MATCH) {
       params = req->url + res;
-      printf("match with wildcard -- <%zu> -- <%s>\n", i, curr->route);
+      debug("match with wildcard -- <%zu> -- <%s>\n", i, curr->route);
     } else {
-      printf("match no wildcard -- <%s>\n", curr->route);
+      debug("match no wildcard -- <%s>\n", curr->route);
     }
     return curr->fn(buf, req, params, state);
   }
 
-  printf("NO MATCH FOR <%s>\n", req->url);
+  debug("NO MATCH FOR <%s>\n", req->url);
   return handle_not_found(buf, req);
 }

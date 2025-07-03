@@ -94,7 +94,7 @@ void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
       continue;
     } else if (ret == -1) {
       if (errno != EINTR) {
-        printf("ERROR: poll() errored out\n");
+        error("ERROR: poll() errored out\n");
       }
       break;
     }
@@ -112,7 +112,7 @@ void handle_client(int client_fd, AppState *state,
 
   thrd_t self = thrd_current();
 
-  printf("Client connected to thread_id <%lu>\n", self);
+  debug("Client connected to thread_id <%lu>\n", self);
 
   uint8_t *in_buf = calloc(INITIAL_BUFFER, sizeof(uint8_t));
   uint8_t *out_buf = calloc(INITIAL_BUFFER, sizeof(uint8_t));
@@ -128,7 +128,7 @@ void handle_client(int client_fd, AppState *state,
       break;
   }
 
-  printf("Client connection closed from thread_id <%lu>\n", self);
+  debug("Client connection closed from thread_id <%lu>\n", self);
 
   free(out_buf);
   free(in_buf);

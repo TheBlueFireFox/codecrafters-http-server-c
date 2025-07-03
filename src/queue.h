@@ -91,7 +91,7 @@
     queue->buffer[queue->head] = task;                                         \
     move_head_##X(queue);                                                      \
                                                                                \
-    printf("head %zu - tail %zu - size %zu\n", queue->head, queue->tail,       \
+    debug("head %zu - tail %zu - size %zu\n", queue->head, queue->tail,       \
            queue->size);                                                       \
                                                                                \
     mtx_unlock(&queue->mutex);                                                 \

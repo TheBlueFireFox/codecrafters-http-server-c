@@ -114,7 +114,7 @@ size_t write_status(uint8_t *const buf, HttpStatus status) {
     MAP(BAD_REQ, "400 Bad Request", buf);
     MAP(NOT_FOUND, "404 Not Found", buf);
   default:
-    printf("INVALID OR NOT SUPPORTED HTTP Status sent");
+    warn("INVALID OR NOT SUPPORTED HTTP Status sent");
     exit(1);
   }
 }
@@ -162,7 +162,7 @@ size_t parse_method(const uint8_t *buf, HttpMethod *meth) {
     }
   }
 
-  printf("INVALID OR NOT SUPPORTED HTTP METHOD");
+  error("INVALID OR NOT SUPPORTED HTTP METHOD");
   exit(1);
 }
 
@@ -170,7 +170,7 @@ size_t parse_version(const uint8_t *buf, HttpVersion *version) {
   const char *const VERSION = "HTTP/1.1";
 
   if (!starts_with((const char *)buf, VERSION)) {
-    printf("INVALID: missing VERSION\n");
+    error("INVALID: missing VERSION\n");
     exit(1);
   }
 
@@ -225,7 +225,7 @@ HttpRequest parse_request(uint8_t *buf) {
   size_t s = parse_method(buf, &method);
 
   if (buf[s] != ' ') {
-    printf("INVALID: HTTP string\n");
+    error("INVALID: HTTP string\n");
     exit(1);
   }
   s += 1;
@@ -241,7 +241,7 @@ HttpRequest parse_request(uint8_t *buf) {
   s += parse_version(buf + s, &version);
 
   if (!starts_with((const char *)buf + s, ENDLINE)) {
-    printf("INVALID: line does not stop with \\r\\n\n");
+    error("INVALID: line does not stop with \\r\\n\n");
     exit(1);
   }
 
@@ -255,7 +255,7 @@ HttpRequest parse_request(uint8_t *buf) {
   s += parse_headers(buf + s, &headers);
 
   if (!starts_with((const char *)buf + s, ENDLINE)) {
-    printf("INVALID: headers don't stop with \\r\\n\n");
+    error("INVALID: headers don't stop with \\r\\n\n");
     exit(1);
   }
 
@@ -263,7 +263,7 @@ HttpRequest parse_request(uint8_t *buf) {
 
   const char *connection_state = find_in_header(&headers, CONNECTION);
 
-  // Connection is kept open or not 
+  // Connection is kept open or not
   headers.connection.active = connection_state == NULL ||
                               strcmp(connection_state, CONNECTION_CLOSE) != 0;
 

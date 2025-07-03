@@ -34,7 +34,7 @@ void send_task(int client_fd, AppState *state, atomic_bool *server_running,
   tf->state = state;
   tf->server_running = server_running;
 
-  printf("Client connection added to the thread pool\n");
+  debug("Client connection added to the thread pool\n");
 
   // move client to thread pool
   add_threaded_task(pool, tf);
@@ -44,7 +44,7 @@ int internal_bind(int *server_fd, int domain, struct sockaddr *addr,
                   size_t addr_size) {
   *server_fd = socket(domain, SOCK_STREAM, 0);
   if (*server_fd == -1) {
-    printf("Socket creation failed: %s...\n", strerror(errno));
+    error("Socket creation failed: %s...\n", strerror(errno));
     return 1;
   }
 
@@ -53,18 +53,18 @@ int internal_bind(int *server_fd, int domain, struct sockaddr *addr,
   int reuse = 1;
   if (setsockopt(*server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) <
       0) {
-    printf("SO_REUSEADDR failed: %s \n", strerror(errno));
+    error("SO_REUSEADDR failed: %s \n", strerror(errno));
     return 1;
   }
 
   if (bind(*server_fd, addr, addr_size) != 0) {
-    printf("Bind failed: %s \n", strerror(errno));
+    error("Bind failed: %s \n", strerror(errno));
     return 1;
   }
 
   const int connection_backlog = 50;
   if (listen(*server_fd, connection_backlog) != 0) {
-    printf("Listen failed: %s \n", strerror(errno));
+    error("Listen failed: %s \n", strerror(errno));
     return 1;
   }
 
@@ -97,17 +97,17 @@ int bind_ipv6(int *server_fd) {
 
 int init_bindings(int *server_fd_ipv4, int *server_fd_ipv6) {
   if (bind_ipv4(server_fd_ipv4) != 0) {
-    printf("Unable to bind ipv4\n");
+    error("Unable to bind ipv4\n");
     return 1;
   }
-  printf("Bound ipv4 at %d\n", PORT);
+  info("Bound ipv4 at %d\n", PORT);
 
   if (bind_ipv6(server_fd_ipv6) != 0) {
     close(*server_fd_ipv4);
-    printf("Unable to bind ipv6\n");
+    error("Unable to bind ipv6\n");
     return 1;
   }
-  printf("Bound ipv6 at %d\n", PORT);
+  info("Bound ipv6 at %d\n", PORT);
 
   return 0;
 }
@@ -138,7 +138,7 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
     if (ret == -1 && errno == EINTR) {
       break;
     } else if (ret == -1) {
-      printf("ERROR: poll() errored out\n");
+      warn("ERROR: poll() errored out\n");
       break;
     } else if (ret == 0) {
       continue;
@@ -149,13 +149,13 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
     if (fds[0].revents & POLLIN) {
       client_fd =
           accept(fd_ipv4, (struct sockaddr *)&client_addr, &client_addr_len);
-      printf("connected via IPv4\n");
+      debug("connected via IPv4\n");
     } else if (fds[1].revents & POLLIN) {
       client_fd = accept(fd_ipv6, (struct sockaddr *)&client_addr_v6,
                          &client_addr_len_v6);
-      printf("connected via IPv6\n");
+      debug("connected via IPv6\n");
     } else {
-      printf("no connections ready to process\n");
+      warn("no connections ready to process\n");
       continue;
     }
 
@@ -172,7 +172,7 @@ int server_loop(int fd_ipv4, int fd_ipv6, AppState *state, ThreadPool *pool,
 }
 
 int start_server(AppState *state, atomic_bool *is_running) {
-  printf("ONLINE\n");
+  info("server online\n");
 
   ThreadPool pool = init_threadpool(&thread_function, THREADPOOL_SIZE);
 
@@ -184,7 +184,7 @@ int start_server(AppState *state, atomic_bool *is_running) {
     return 1;
   }
 
-  printf("Waiting for a client to connect...\n");
+  debug("Waiting for a client to connect...\n");
 
   server_loop(server_fd_ipv4, server_fd_ipv6, state, &pool, is_running);
 
