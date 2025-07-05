@@ -1,12 +1,15 @@
-#ifndef QUEUE
-#define QUEUE
+#ifndef QUEUE_H
+#define QUEUE_H
 
 #include <threads.h>
 
 #include "utils.h"
+#include <stddef.h>
 
+#define Queue(X) Queue_##X
+#define _UN __attribute__((unused))
 #define INIT_QUEUE(X)                                                          \
-  struct Queue_##X {                                                           \
+  struct Queue(X) {                                                            \
     mtx_t mutex;                                                               \
     cnd_t cond;                                                                \
     X *buffer;                                                                 \
@@ -15,10 +18,10 @@
     size_t size;                                                               \
   };                                                                           \
                                                                                \
-  typedef struct Queue_##X Queue_##X;                                          \
+  typedef struct Queue(X) Queue(X);                                            \
                                                                                \
-  __attribute__((unused)) static Queue_##X init_queue_##X(size_t size) {       \
-    Queue_##X queue = {                                                        \
+  _UN static Queue(X) init_queue_##X(size_t size) {                            \
+    Queue(X) queue = {                                                         \
         .buffer = NULL,                                                        \
         .head = 0,                                                             \
         .tail = 0,                                                             \
@@ -26,7 +29,7 @@
     };                                                                         \
                                                                                \
     /* add some initial size */                                                \
-    queue.buffer = calloc(size, sizeof(X));                                    \
+    queue.buffer = (X *)calloc(size, sizeof(X));                               \
     ASSERT(queue.buffer != NULL);                                              \
                                                                                \
     mtx_init(&queue.mutex, mtx_plain);                                         \
@@ -35,7 +38,7 @@
     return queue;                                                              \
   }                                                                            \
                                                                                \
-  __attribute__((unused)) static void free_queue_##X(Queue_##X *queue) {       \
+  _UN static void free_queue_##X(Queue(X) * queue) {                           \
     mtx_lock(&queue->mutex);                                                   \
                                                                                \
     while (queue->tail != queue->head) {                                       \
@@ -54,22 +57,26 @@
     mtx_destroy(&queue->mutex);                                                \
   }                                                                            \
                                                                                \
-  __attribute__((unused)) static void move_head_##X(Queue_##X *queue) {        \
+  _UN static bool is_full_##X(Queue(X) * queue) {                              \
+    return queue->head == queue->tail;                                         \
+  }                                                                            \
+                                                                               \
+  _UN static void move_head_##X(Queue(X) * queue) {                            \
                                                                                \
     /* move up the head */                                                     \
     queue->head = (queue->head + 1) % queue->size;                             \
                                                                                \
     /* we have not used up the whole buffer */                                 \
-    if (queue->head != queue->tail) {                                          \
+    if (!is_full_##X(queue)) {                                                 \
       return;                                                                  \
     }                                                                          \
                                                                                \
     size_t old_size = queue->size;                                             \
     queue->size *= 2;                                                          \
                                                                                \
-    size_t sp = sizeof(Queue_##X);                                             \
+    size_t sp = sizeof(Queue(X));                                              \
                                                                                \
-    queue->buffer = realloc(queue->buffer, queue->size * sp);                  \
+    queue->buffer = (X *)realloc((void *)queue->buffer, queue->size * sp);     \
     ASSERT(queue->buffer != NULL);                                             \
                                                                                \
     memset(queue->buffer + old_size, 0, old_size);                             \
@@ -84,15 +91,15 @@
     queue->head = (old_size + queue->tail) % queue->size;                      \
   }                                                                            \
                                                                                \
-  __attribute__((unused)) static void add_task_##X(Queue_##X *queue, X task) { \
+  _UN static void add_task_##X(Queue(X) * queue, X task) {                     \
     mtx_lock(&queue->mutex);                                                   \
     ASSERT(queue->buffer != NULL);                                             \
                                                                                \
     queue->buffer[queue->head] = task;                                         \
     move_head_##X(queue);                                                      \
                                                                                \
-    debug("head %zu - tail %zu - size %zu\n", queue->head, queue->tail,       \
-           queue->size);                                                       \
+    debug("head %zu - tail %zu - size %zu\n", queue->head, queue->tail,        \
+          queue->size);                                                        \
                                                                                \
     mtx_unlock(&queue->mutex);                                                 \
                                                                                \
@@ -100,7 +107,7 @@
     cnd_signal(&queue->cond);                                                  \
   }                                                                            \
                                                                                \
-  __attribute__((unused)) static void *pop_task_##X(Queue_##X *queue) {        \
+  _UN static void *pop_task_##X(Queue(X) * queue) {                            \
     void *task = NULL;                                                         \
                                                                                \
     mtx_lock(&queue->mutex);                                                   \
@@ -117,4 +124,4 @@
     return task;                                                               \
   }
 
-#endif // !QUEUE
+#endif // !QUEUE_H

@@ -19,7 +19,7 @@ typedef void (*ThreadFunction)(void *);
 
 struct ThreadPoolState {
   atomic_bool *is_active;
-  Queue_ThreadTask queue;
+  Queue(ThreadTask) queue;
   ThreadFunction fn;
 };
 
