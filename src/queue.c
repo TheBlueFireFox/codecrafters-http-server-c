@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "queue2.h"
+#include "queue.h"
 #include "utils.h"
 
 void _init_queue(QueueInternal *qi, size_t capacity, size_t obj_size) {

@@ -41,7 +41,7 @@ add_library(
   http-server-lib STATIC
   src/client.c
   src/http.c
-  src/queue2.c
+  src/queue.c
   src/routes.c
   src/server.c
   src/thread.c

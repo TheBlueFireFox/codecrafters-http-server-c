@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 extern "C" {
-#include "queue2.h"
+#include "queue.h"
 }
 
 TEST(Test, isEmpty) {

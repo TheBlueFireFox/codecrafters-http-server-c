@@ -6,7 +6,7 @@
 #include <threads.h>
 #include <unistd.h>
 
-#include "queue2.h"
+#include "queue.h"
 
 #define THREADPOOL_SIZE sysconf(_SC_NPROCESSORS_ONLN)
 #define THREAD_TASK_QUEUE_SIZE THREADPOOL_SIZE
