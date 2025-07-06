@@ -1,13 +1,15 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
+#include <stddef.h>
+#include <stdint.h>
 #include <threads.h>
 
 #include "utils.h"
-#include <stddef.h>
 
 #define Queue(X) Queue_##X
 #define _UN __attribute__((unused))
+
 #define INIT_QUEUE(X)                                                          \
   struct Queue(X) {                                                            \
     mtx_t mutex;                                                               \
@@ -123,5 +125,4 @@
     POP_TASK_UNLOCK_##X : mtx_unlock(&queue->mutex);                           \
     return task;                                                               \
   }
-
 #endif // !QUEUE_H

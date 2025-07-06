@@ -21,12 +21,14 @@ if(LOCAL)
   FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
-    DOWNLOAD_EXTRACT_TIMESTAMP 1
-  )
+        DOWNLOAD_EXTRACT_TIMESTAMP
+        1)
 
   # For Windows: Prevent overriding the parent project's compiler/linker
   # settings
-  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  set(gtest_force_shared_crt
+      ON
+      CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
 
 endif()
@@ -35,10 +37,16 @@ find_package(ZLIB REQUIRED)
 
 # ------------------------------ BUILD ------------------------------
 
-file(GLOB_RECURSE SOURCE_FILES src/*.c src/*.h)
-list(REMOVE_ITEM SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c)
+add_library(
+  http-server-lib STATIC
+  src/client.c
+  src/http.c
+  src/queue2.c
+  src/routes.c
+  src/server.c
+  src/thread.c
+  src/utils.c)
 
-add_library(http-server-lib STATIC ${SOURCE_FILES})
 target_include_directories(http-server-lib PUBLIC src)
 
 target_link_libraries(http-server-lib PUBLIC ZLIB::ZLIB)
@@ -53,7 +61,7 @@ if(LOCAL)
   enable_testing()
 
   add_executable(http-server-test test/queue.cpp)
-  target_link_libraries(http-server-test GTest::gtest_main http-server-lib)
+  target_link_libraries(http-server-test http-server-lib GTest::gtest_main)
 
   include(GoogleTest)
   gtest_discover_tests(http-server-test)
