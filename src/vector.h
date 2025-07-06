@@ -1,9 +1,9 @@
 #ifndef VECTOR
 #define VECTOR
 
+#include "utils.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include "utils.h"
 
 #define START_SIZE 4
 

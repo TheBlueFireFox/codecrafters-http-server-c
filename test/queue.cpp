@@ -4,7 +4,7 @@ extern "C" {
 #include "queue.h"
 }
 
-TEST(Test, isEmpty) {
+TEST(TestQueue, isEmpty) {
   Queue(uint8_t) queue;
 
   init_queue(&queue, 4);
@@ -18,7 +18,7 @@ TEST(Test, isEmpty) {
   free_queue(&queue);
 }
 
-TEST(Test, enqueue) {
+TEST(TestQueue, enqueue) {
   Queue(uint32_t) queue;
 
   init_queue(&queue, 4);
@@ -36,7 +36,7 @@ TEST(Test, enqueue) {
   free_queue(&queue);
 }
 
-TEST(Test, dequeue) {
+TEST(TestQueue, dequeue) {
   Queue(uint32_t) queue;
 
   init_queue(&queue, 4);
@@ -61,7 +61,7 @@ TEST(Test, dequeue) {
   free_queue(&queue);
 }
 
-TEST(Test, utilizeMax) {
+TEST(TestQueue, utilizeMax) {
   Queue(size_t) queue;
 
   init_queue(&queue, 4);
@@ -90,7 +90,7 @@ TEST(Test, utilizeMax) {
   free_queue(&queue);
 }
 
-TEST(Test, wrapAround) {
+TEST(TestQueue, wrapAround) {
   Queue(size_t) queue;
 
   init_queue(&queue, 4);
@@ -135,7 +135,7 @@ TEST(Test, wrapAround) {
   free_queue(&queue);
 }
 
-TEST(Test, resizeBuffer) {
+TEST(TestQueue, resizeBuffer) {
   Queue(size_t) queue;
 
   init_queue(&queue, 4);
@@ -164,7 +164,7 @@ TEST(Test, resizeBuffer) {
   free_queue(&queue);
 }
 
-TEST(Test, resizeBuffer2) {
+TEST(TestQueue, resizeBuffer2) {
   Queue(size_t) queue;
 
   init_queue(&queue, 4);

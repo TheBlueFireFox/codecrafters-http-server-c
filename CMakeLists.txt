@@ -45,7 +45,8 @@ add_library(
   src/routes.c
   src/server.c
   src/thread.c
-  src/utils.c)
+  src/utils.c
+  src/vector2.c)
 
 target_include_directories(http-server-lib PUBLIC src)
 
@@ -60,7 +61,7 @@ target_link_libraries(http-server PRIVATE http-server-lib)
 if(LOCAL)
   enable_testing()
 
-  add_executable(http-server-test test/queue.cpp)
+  add_executable(http-server-test test/queue.cpp test/vector.cpp)
   target_link_libraries(http-server-test http-server-lib GTest::gtest_main)
 
   include(GoogleTest)
