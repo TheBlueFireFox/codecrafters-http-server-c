@@ -6,20 +6,20 @@
 #include <threads.h>
 #include <unistd.h>
 
-#include "queue.h"
+#include "queue2.h"
 
 #define THREADPOOL_SIZE sysconf(_SC_NPROCESSORS_ONLN)
-#define THREAD_TASK_QUEUE_SIZE 64
+#define THREAD_TASK_QUEUE_SIZE THREADPOOL_SIZE
 
 typedef void *ThreadTask;
-
-INIT_QUEUE(ThreadTask)
 
 typedef void (*ThreadFunction)(void *);
 
 struct ThreadPoolState {
-  atomic_bool *is_active;
   Queue(ThreadTask) queue;
+  mtx_t mutex;
+  cnd_t cond;
+  atomic_bool *is_active;
   ThreadFunction fn;
 };
 

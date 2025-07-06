@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "thread.h"
+#include "utils.h"
 
 static int thread_start(void *arg) {
   ThreadPoolState *info = arg;
@@ -14,17 +15,22 @@ static int thread_start(void *arg) {
       break;
     }
 
-    void *task = pop_task_ThreadTask(&info->queue);
-    if (task != NULL) {
+    void *task = NULL;
+    mtx_lock(&info->mutex);
+    bool has = dequeue_queue(&info->queue, &task);
+    mtx_unlock(&info->mutex);
+
+    if (has) {
+      ASSERT(task != NULL);
       // work on task
       info->fn(task);
       continue;
     }
 
     // wait until queue has something to do
-    mtx_lock(&info->queue.mutex);
-    cnd_wait(&info->queue.cond, &info->queue.mutex);
-    mtx_unlock(&info->queue.mutex);
+    mtx_lock(&info->mutex);
+    cnd_wait(&info->cond, &info->mutex);
+    mtx_unlock(&info->mutex);
   }
 
   return 0;
@@ -37,8 +43,11 @@ ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
   ThreadPoolState *state = malloc(sizeof(ThreadPoolState));
   state->is_active = malloc(sizeof(atomic_bool));
 
+  mtx_init(&state->mutex, mtx_plain);
+  cnd_init(&state->cond);
+
   atomic_store(state->is_active, true);
-  state->queue = init_queue_ThreadTask(THREAD_TASK_QUEUE_SIZE);
+  init_queue(&state->queue, THREAD_TASK_QUEUE_SIZE);
   state->fn = fn;
 
   ThreadPool pool = {
@@ -55,20 +64,29 @@ ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
 }
 
 void add_threaded_task(ThreadPool *pool, void *task) {
-  add_task_ThreadTask(&pool->state->queue, task);
+  mtx_lock(&pool->state->mutex);
+  enqueue_queue(&pool->state->queue, task);
+  mtx_unlock(&pool->state->mutex);
+
+  /* start one of the waiting threads */
+  cnd_signal(&pool->state->cond);
 }
 
 void free_threadpool(ThreadPool *pool) {
   atomic_store(pool->state->is_active, false);
 
   // wake all threads
-  cnd_broadcast(&pool->state->queue.cond);
+  cnd_broadcast(&pool->state->cond);
 
   for (size_t i = 0; i < pool->size; i += 1) {
     thrd_join(pool->thread[i], NULL);
   }
 
-  free_queue_ThreadTask(&pool->state->queue);
+  // TODO: loop over all the queue elements and free them
+  mtx_lock(&pool->state->mutex);
+  free_queue(&pool->state->queue);
+  mtx_unlock(&pool->state->mutex);
+  mtx_destroy(&pool->state->mutex);
 
   free(pool->state->is_active);
   free(pool->state);
