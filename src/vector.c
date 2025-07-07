@@ -1,4 +1,4 @@
-#include "vector2.h"
+#include "vector.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +27,8 @@ void _free_vector(VectorInternal *qi) {
   qi->capacity = 0;
   qi->len = 0;
 }
+
+size_t _len_vector(VectorInternal *vec) { return vec->len; }
 
 static void _realloc_vector(VectorInternal *vec, size_t obj_size) {
   if (vec->ptr == NULL) {
@@ -60,4 +62,9 @@ void *_get_vector(VectorInternal *vec, size_t idx, size_t obj_size) {
 
 void _sort_vector(VectorInternal *vec, size_t obj_size, compFn comp_fn) {
   qsort(vec->ptr, vec->len, obj_size, comp_fn);
+}
+
+void *_search_vector(VectorInternal *vec, size_t obj_size, const void *key,
+                     compFn comp_fn) {
+  return bsearch(key, vec->ptr, vec->len, obj_size, comp_fn);
 }

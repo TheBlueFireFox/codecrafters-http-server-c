@@ -1,58 +1,110 @@
-#ifndef VECTOR
-#define VECTOR
+#ifndef VECTOR_H
+#define VECTOR_H
 
-#include "utils.h"
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 
-#define START_SIZE 4
+#define VECTOR_DEFAULT_CAPACITY 4
 
-// Internal representation
-// typeof(X)* ptr; (start of array)
-// size_t len;
-#define INIT_VECTOR(X)                                                         \
-  struct Vector_##X {                                                          \
-    X *ptr;                                                                    \
-    size_t len;                                                                \
-    size_t capacity;                                                           \
-  };                                                                           \
-                                                                               \
-  typedef struct Vector_##X Vector_##X;                                        \
-  __attribute__((unused)) static Vector_##X init_vector_##X() {                \
-    Vector_##X v = {                                                           \
-        .ptr = NULL,                                                           \
-        .len = 0,                                                              \
-        .capacity = 0,                                                         \
-    };                                                                         \
-    return v;                                                                  \
-  }                                                                            \
-                                                                               \
-  __attribute__((unused)) static void free_vector_##X(Vector_##X *vec) {       \
-    free(vec->ptr);                                                            \
-    *vec = init_vector_##X();                                                  \
-  }                                                                            \
-                                                                               \
-  __attribute__((unused)) static void realloc_vector_##X(Vector_##X *vec) {    \
-    if (vec->ptr == NULL) {                                                    \
-      /* new list */                                                           \
-      vec->capacity = START_SIZE;                                              \
-    } /* realloc */                                                            \
-    else if (vec->len == vec->capacity) {                                      \
-      /* capacity * 2 */                                                       \
-      vec->capacity *= 2;                                                      \
-    }                                                                          \
-    vec->ptr = (X *)realloc(vec->ptr, sizeof(X) * vec->capacity);              \
-    ASSERT(vec->ptr != NULL);                                                  \
-  }                                                                            \
-                                                                               \
-  __attribute__((unused)) static void push_vector_##X(Vector_##X *vec,         \
-                                                      X elem) {                \
-    if (vec->capacity == vec->len) {                                           \
-      /* realloc */                                                            \
-      realloc_vector_##X(vec);                                                 \
-    }                                                                          \
-    vec->ptr[vec->len] = elem;                                                 \
-    vec->len += 1;                                                             \
+struct VectorInternal {
+  uint8_t *ptr;
+  size_t len;
+  size_t capacity;
+};
+
+typedef struct VectorInternal VectorInternal;
+
+#define Vector(type)                                                           \
+  union {                                                                      \
+    VectorInternal internal;                                                   \
+    type *payload;                                                             \
   }
 
-#endif // !VECTOR
+#define _payload_size(vector) sizeof(*(vector)->payload)
+
+// Internal function for vector this should not be used directly by anything
+// except by the public macros
+//
+// This functions prepares the vector and does not allocate
+void _init_vector(VectorInternal *vec);
+
+#define init_vector(vector)                                                    \
+  do {                                                                         \
+    _init_vector((&(vector)->internal));                                       \
+  } while (0)
+
+// Internal function for vector this should not be used directly by anything
+// except by the public macros
+//
+// This functions initialized the vector and preallocated capacity for
+// the vector
+void _init_vector_with_capacity(VectorInternal *vec, size_t capacity,
+                                size_t obj_size);
+
+#define init_vector_with_capacity(vector, capacity)                            \
+  do {                                                                         \
+    _init_vector_with_capacity((&(vector)->internal), capacity,                \
+                               _payload_size(vector));                         \
+  } while (0)
+
+// Internal function for queue this should not be used directly by anything
+// except by the public macros
+//
+// This functions frees the vector and resets everything to zero
+void _free_vector(VectorInternal *vec);
+
+#define free_vector(vector) _free_vector(&(vector)->internal)
+
+// Internal function for queue this should not be used directly by anything
+// except by the public macros
+//
+// This functions return the vectors len
+size_t _len_vector(VectorInternal *vec);
+
+#define len_vector(vector) _len_vector(&(vector)->internal)
+
+// Internal function for queue this should not be used directly by anything
+// except by the public macros
+//
+// This functions adds an element to the vector
+void _push_vector(VectorInternal *vec, uint8_t const *const elem,
+                  size_t obj_size);
+
+#define push_vector(vector, item)                                              \
+  _push_vector((&(vector)->internal),                                          \
+               (uint8_t const *const)(1 ? &(item) : ((vector)->payload)),      \
+               _payload_size(vector))
+
+void *_get_vector(VectorInternal *vec, size_t idx, size_t obj_size);
+
+#define get_vector(vector, idx)                                                \
+  (typeof(((vector)->payload)))(_get_vector(&(vector)->internal, idx,          \
+                                            _payload_size(vector)))
+
+typedef int (*compFn)(const void *p1, const void *p2);
+
+// Internal function for queue this should not be used directly by anything
+// except by the public macros
+//
+// This functions will sort the whole vector inplace using the qsort function
+void _sort_vector(VectorInternal *vec, size_t obj_size, compFn comp_fn);
+
+#define sort_vector(vector, comp_fn)                                           \
+  _sort_vector((&(vector)->internal), _payload_size(vector), comp_fn)
+
+void *_search_vector(VectorInternal *vec, size_t obj_size, const void *key,
+                     compFn comp_fn);
+
+#define search_vector(vector, key, comp_fn)                                    \
+  _search_vector((&(vector)->internal), _payload_size(vector), key, comp_fn)
+
+// C23 extention typeof
+#define _each(item, array, type, length)                                       \
+  type p = (type)(array), (item) = p;                                          \
+  p < ((type)((array))) + length;                                              \
+  p += 1, (item) = p
+
+#define each(item, vector)                                                     \
+  _each(item, (vector)->internal.ptr, typeof(((vector)->payload)),             \
+        (vector)->internal.len)
+#endif

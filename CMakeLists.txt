@@ -46,7 +46,7 @@ add_library(
   src/server.c
   src/thread.c
   src/utils.c
-  src/vector2.c)
+  src/vector.c)
 
 target_include_directories(http-server-lib PUBLIC src)
 

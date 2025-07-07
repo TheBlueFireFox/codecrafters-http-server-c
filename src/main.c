@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "server.h"
+#include "utils.h"
 
 atomic_bool *is_running = NULL;
 

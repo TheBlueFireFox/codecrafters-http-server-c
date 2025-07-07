@@ -1,4 +1,3 @@
-#include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -56,8 +55,7 @@ static int cmpkey(const void *key, const void *elem) {
 // array requires sorting)
 static void sort_headers(HttpHeaders *headers) {
   if (!headers->is_sorted) {
-    qsort(headers->headers.ptr, headers->headers.len,
-          sizeof(headers->headers.ptr[0]), cmpheaders);
+    sort_vector(&headers->headers, cmpheaders);
   }
   headers->is_sorted = true;
 }
@@ -69,12 +67,12 @@ static void sort_headers(HttpHeaders *headers) {
 const char *find_in_header(HttpHeaders *headers, const char *const key) {
   sort_headers(headers);
 
-  void *res = bsearch(&key, headers->headers.ptr, headers->headers.len,
-                      sizeof(headers->headers.ptr[0]), cmpkey);
+  const HttpHeader *res = search_vector(&headers->headers, &key, cmpkey);
+
   if (res == NULL) {
     return NULL;
   }
-  return ((const HttpHeader *)res)->value;
+  return res->value;
 }
 
 void push_header_headers(HttpHeaders *headers, const char *const key,
@@ -86,7 +84,7 @@ void push_header_headers(HttpHeaders *headers, const char *const key,
       .key = key,
   };
 
-  push_vector_HttpHeader(&headers->headers, header);
+  push_vector(&headers->headers, header);
 }
 
 // // Status line
@@ -121,10 +119,9 @@ size_t write_status(uint8_t *const buf, HttpStatus status) {
 
 size_t write_headers(uint8_t *const buf, HttpHeaders *headers) {
   size_t size = 0;
-  for (size_t i = 0; i < headers->headers.len; i += 1) {
-    const char *const key = headers->headers.ptr[i].key;
-    const char *const value = headers->headers.ptr[i].value;
-    size += sprintf((char *)buf + size, "%s: %s" ENDLINE, key, value);
+  for (each(header, &headers->headers)) {
+    size += sprintf((char *)buf + size, "%s: %s" ENDLINE, header->key,
+                    header->value);
   }
 
   size += write_endline(buf + size);
@@ -247,10 +244,10 @@ HttpRequest parse_request(uint8_t *buf) {
 
   s += 2;
 
-  HttpHeaders headers = {.headers = init_vector_HttpHeader(),
-                         .encoding = NO_ENCODING,
+  HttpHeaders headers = {.encoding = NO_ENCODING,
                          .connection = {.active = true},
                          .is_sorted = false};
+  init_vector(&headers.headers);
 
   s += parse_headers(buf + s, &headers);
 
@@ -290,16 +287,13 @@ HttpRequest parse_request(uint8_t *buf) {
   return req;
 }
 
-void free_http_request(HttpRequest *req) {
-  free_vector_HttpHeader(&req->headers.headers);
-}
+void free_http_request(HttpRequest *req) { free_vector(&req->headers.headers); }
 
 HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding,
                            HttpConnectionState connection_status) {
-  HttpHeaders headers = {.headers = init_vector_HttpHeader(),
-                         .encoding = encoding,
-                         .connection = connection_status,
-                         .is_sorted = true};
+  HttpHeaders headers = {
+      .encoding = encoding, .connection = connection_status, .is_sorted = true};
+  init_vector(&headers.headers);
 
   const char *key = CONNECTION;
   const char *value = CONNECTION_ALIVE;
@@ -331,5 +325,5 @@ void push_header_response(HttpResponse *resp, const char *const key,
 }
 
 void free_http_response(HttpResponse *resp) {
-  free_vector_HttpHeader(&resp->headers.headers);
+  free_vector(&resp->headers.headers);
 }

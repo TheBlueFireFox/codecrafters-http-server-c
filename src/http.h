@@ -40,8 +40,6 @@ enum HttpContentEncoding {
 
 typedef enum HttpContentEncoding HttpContentEncoding;
 
-INIT_VECTOR(HttpHeader)
-
 struct HttpConnectionState {
   bool active;
 };
@@ -49,7 +47,7 @@ struct HttpConnectionState {
 typedef struct HttpConnectionState HttpConnectionState;
 
 struct HttpHeaders {
-  Vector_HttpHeader headers;
+  Vector(HttpHeader) headers;
   HttpContentEncoding encoding;
   HttpConnectionState connection;
   bool is_sorted;
