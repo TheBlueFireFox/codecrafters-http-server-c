@@ -77,7 +77,7 @@ void _enqueue_queue(QueueInternal *qi, uint8_t const *const val) {
   debug("head %zu - tail %zu - size %zu\n", qi->head, qi->tail, qi->size);
 }
 
-bool _dequeue_queue(QueueInternal *qi, uint8_t *const val) {
+bool _dequeue_queue(QueueInternal *qi, uint8_t *val) {
   if (_is_empty_queue(qi)) {
     return false;
   }

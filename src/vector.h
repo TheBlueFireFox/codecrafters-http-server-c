@@ -75,11 +75,13 @@ void _push_vector(VectorInternal *vec, uint8_t const *const elem,
                (uint8_t const *const)(1 ? &(item) : ((vector)->payload)),      \
                _payload_size(vector))
 
-void *_get_vector(VectorInternal *vec, size_t idx, size_t obj_size);
+bool _get_vector(VectorInternal *vec, size_t idx, uint8_t *const val,
+                 size_t obj_size);
 
-#define get_vector(vector, idx)                                                \
-  (typeof(((vector)->payload)))(_get_vector(&(vector)->internal, idx,          \
-                                            _payload_size(vector)))
+#define get_vector(vector, idx, item)                                          \
+  _get_vector(&(vector)->internal, idx,                                        \
+              (uint8_t *const)(1 ? (item) : ((vector)->payload)),              \
+              _payload_size(vector))
 
 typedef int (*compFn)(const void *p1, const void *p2);
 

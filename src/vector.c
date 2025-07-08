@@ -53,11 +53,13 @@ void _push_vector(VectorInternal *vec, uint8_t const *const elem,
   vec->len += 1;
 }
 
-void *_get_vector(VectorInternal *vec, size_t idx, size_t obj_size) {
+bool _get_vector(VectorInternal *vec, size_t idx, uint8_t *val,
+                 size_t obj_size) {
   if (vec->len <= idx) {
-    return NULL;
+    return false;
   }
-  return vec->ptr + idx * obj_size;
+  memcpy(val, vec->ptr + idx * obj_size, obj_size);
+  return true;
 }
 
 void _sort_vector(VectorInternal *vec, size_t obj_size, compFn comp_fn) {

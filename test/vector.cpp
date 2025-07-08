@@ -29,8 +29,10 @@ TEST(TestVector, withCapacityPush) {
 
   push_vector(&vector, exp);
 
-  size_t *got = get_vector(&vector, 0);
-  ASSERT_EQ(exp, *got);
+  size_t got;
+  bool is_valid = get_vector(&vector, 0, &got);
+  ASSERT_TRUE(is_valid);
+  ASSERT_EQ(exp, got);
 
   ASSERT_EQ(vector.internal.len, 1);
   ASSERT_EQ(vector.internal.capacity, 1);
@@ -43,14 +45,17 @@ TEST(TestVector, get) {
   init_vector_with_capacity(&vector, 1);
   size_t exp = ~0;
 
-  size_t *got = get_vector(&vector, 0);
+  size_t got;
+  bool is_valid = get_vector(&vector, 0, &got);
+  ASSERT_FALSE(is_valid);
 
   push_vector(&vector, exp);
 
   ASSERT_EQ(vector.internal.capacity, 1);
   ASSERT_EQ(vector.internal.len, 1);
 
-  got = get_vector(&vector, 0);
+  is_valid = get_vector(&vector, 0, &got);
+  ASSERT_TRUE(is_valid);
 
   free_vector(&vector);
 }
@@ -62,8 +67,10 @@ TEST(TestVector, realloc) {
   size_t exp = ~0;
   push_vector(&vector, exp);
 
-  size_t *got = get_vector(&vector, 0);
-  ASSERT_EQ(exp, *got);
+  size_t got;
+  bool is_valid = get_vector(&vector, 0, &got);
+  ASSERT_TRUE(is_valid);
+  ASSERT_EQ(exp, got);
 
   ASSERT_EQ(vector.internal.len, 1);
   ASSERT_EQ(vector.internal.capacity, VECTOR_DEFAULT_CAPACITY);
@@ -120,8 +127,11 @@ TEST(TestVector, foreachComplexType) {
   std::vector<Foo> get;
 
   for (size_t i = 0; i < 10; i += 1) {
-    auto c = get_vector(&vector, i);
-    get.push_back(*c);
+    Foo c;
+    bool is_valid = get_vector(&vector, i, &c);
+
+    ASSERT_TRUE(is_valid);
+    get.push_back(c);
   }
 
   for (size_t i = 0; i < 10; i += 1) {
@@ -164,8 +174,10 @@ TEST(TestVector, sorting) {
   }
 
   for (size_t i = 0; i < 10; i += 1) {
-    size_t *got = get_vector(&vector, i);
-    ASSERT_EQ(*got, 10 - i);
+    size_t got;
+    bool is_valid = get_vector(&vector, i, &got);
+    ASSERT_TRUE(is_valid);
+    ASSERT_EQ(got, 10 - i);
   }
 
   auto sort = [](const void *l, const void *r) -> int {
@@ -178,8 +190,10 @@ TEST(TestVector, sorting) {
   sort_vector(&vector, sort);
 
   for (size_t i = 0; i < 10; i += 1) {
-    size_t *got = get_vector(&vector, i);
-    ASSERT_EQ(*got, i + 1);
+    size_t got;
+    bool is_valid = get_vector(&vector, i, &got);
+    ASSERT_TRUE(is_valid);
+    ASSERT_EQ(got, i + 1);
   }
 
   free_vector(&vector);

@@ -61,10 +61,10 @@ void _enqueue_queue(QueueInternal *qi, uint8_t const *const val);
   _enqueue_queue((queue)->internal,                                            \
                  (uint8_t const *const)(1 ? &(item) : ((queue)->payload)))
 
-bool _dequeue_queue(QueueInternal *qi, uint8_t *const val);
+bool _dequeue_queue(QueueInternal *qi, uint8_t *val);
 
 #define dequeue_queue(queue, item)                                             \
   _dequeue_queue((queue)->internal,                                            \
-                 (uint8_t *const)(1 ? (item) : ((queue)->payload)))
+                 (uint8_t *)(1 ? (item) : ((queue)->payload)))
 
 #endif
