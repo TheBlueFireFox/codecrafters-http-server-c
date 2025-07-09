@@ -26,10 +26,10 @@ TEST(TestQueue, enqueue) {
   uint32_t exp = 0xFF55FF55;
   enqueue_queue(&queue, exp);
 
-  ASSERT_EQ(queue.internal->head, 0);
-  ASSERT_EQ(queue.internal->tail, 1);
+  ASSERT_EQ(queue.internal.head, 0);
+  ASSERT_EQ(queue.internal.tail, 1);
 
-  uint32_t got = *(uint32_t *)queue.internal->buffer;
+  uint32_t got = *(uint32_t *)queue.internal.buffer;
 
   ASSERT_EQ(got, exp);
 
@@ -53,8 +53,8 @@ TEST(TestQueue, dequeue) {
 
   ASSERT_EQ(task, true);
 
-  ASSERT_EQ(queue.internal->head, 1);
-  ASSERT_EQ(queue.internal->tail, 1);
+  ASSERT_EQ(queue.internal.head, 1);
+  ASSERT_EQ(queue.internal.tail, 1);
 
   ASSERT_EQ(got, exp);
 
@@ -70,10 +70,10 @@ TEST(TestQueue, utilizeMax) {
     enqueue_queue(&queue, i);
   }
 
-  ASSERT_EQ(queue.internal->capacity, 4);
-  ASSERT_EQ(queue.internal->size, 4);
-  ASSERT_EQ(queue.internal->head, 0);
-  ASSERT_EQ(queue.internal->tail, 0);
+  ASSERT_EQ(queue.internal.capacity, 4);
+  ASSERT_EQ(queue.internal.size, 4);
+  ASSERT_EQ(queue.internal.head, 0);
+  ASSERT_EQ(queue.internal.tail, 0);
 
   for (size_t i = 0; i < 4; i += 1) {
     size_t got = ~0;
@@ -82,9 +82,9 @@ TEST(TestQueue, utilizeMax) {
     ASSERT_EQ(got, i);
   }
 
-  ASSERT_EQ(queue.internal->tail, 0);
-  ASSERT_EQ(queue.internal->capacity, 4);
-  ASSERT_EQ(queue.internal->size, 0);
+  ASSERT_EQ(queue.internal.capacity, 4);
+  ASSERT_EQ(queue.internal.size, 0);
+  ASSERT_EQ(queue.internal.tail, 0);
 
   free_queue(&queue);
 }
@@ -98,10 +98,10 @@ TEST(TestQueue, wrapAround) {
     enqueue_queue(&queue, i);
   }
 
-  ASSERT_EQ(queue.internal->capacity, 4);
-  ASSERT_EQ(queue.internal->size, 4);
-  ASSERT_EQ(queue.internal->head, 0);
-  ASSERT_EQ(queue.internal->tail, 0);
+  ASSERT_EQ(queue.internal.capacity, 4);
+  ASSERT_EQ(queue.internal.size, 4);
+  ASSERT_EQ(queue.internal.head, 0);
+  ASSERT_EQ(queue.internal.tail, 0);
 
   for (size_t i = 0; i < 4; i += 1) {
     size_t got = ~0;
@@ -110,10 +110,10 @@ TEST(TestQueue, wrapAround) {
     ASSERT_EQ(got, i);
   }
 
-  ASSERT_EQ(queue.internal->head, 0);
-  ASSERT_EQ(queue.internal->tail, 0);
-  ASSERT_EQ(queue.internal->capacity, 4);
-  ASSERT_EQ(queue.internal->size, 0);
+  ASSERT_EQ(queue.internal.head, 0);
+  ASSERT_EQ(queue.internal.tail, 0);
+  ASSERT_EQ(queue.internal.capacity, 4);
+  ASSERT_EQ(queue.internal.size, 0);
 
   for (size_t i = 0; i < 2; i += 1) {
     enqueue_queue(&queue, i);
@@ -125,10 +125,10 @@ TEST(TestQueue, wrapAround) {
     ASSERT_EQ(got, i);
   }
 
-  ASSERT_EQ(queue.internal->head, 2);
-  ASSERT_EQ(queue.internal->tail, 2);
-  ASSERT_EQ(queue.internal->capacity, 4);
-  ASSERT_EQ(queue.internal->size, 0);
+  ASSERT_EQ(queue.internal.head, 2);
+  ASSERT_EQ(queue.internal.tail, 2);
+  ASSERT_EQ(queue.internal.capacity, 4);
+  ASSERT_EQ(queue.internal.size, 0);
 
   free_queue(&queue);
 }
@@ -142,22 +142,22 @@ TEST(TestQueue, resizeBuffer) {
     enqueue_queue(&queue, i);
   }
 
-  ASSERT_EQ(queue.internal->capacity, 4);
-  ASSERT_EQ(queue.internal->size, 4);
-  ASSERT_EQ(queue.internal->head, 0);
-  ASSERT_EQ(queue.internal->tail, 0);
+  ASSERT_EQ(queue.internal.capacity, 4);
+  ASSERT_EQ(queue.internal.size, 4);
+  ASSERT_EQ(queue.internal.head, 0);
+  ASSERT_EQ(queue.internal.tail, 0);
 
-  size_t got = *(size_t *)queue.internal->buffer;
+  size_t got = *(size_t *)queue.internal.buffer;
 
   ASSERT_EQ(got, 0);
 
   size_t ff = 42;
   enqueue_queue(&queue, ff);
 
-  ASSERT_EQ(queue.internal->capacity, 8);
-  ASSERT_EQ(queue.internal->size, 5);
-  ASSERT_EQ(queue.internal->head, 0);
-  ASSERT_EQ(queue.internal->tail, 5);
+  ASSERT_EQ(queue.internal.capacity, 8);
+  ASSERT_EQ(queue.internal.size, 5);
+  ASSERT_EQ(queue.internal.head, 0);
+  ASSERT_EQ(queue.internal.tail, 5);
 
   free_queue(&queue);
 }
@@ -172,12 +172,12 @@ TEST(TestQueue, resizeBuffer2) {
     enqueue_queue(&queue, i);
   }
 
-  ASSERT_EQ(queue.internal->capacity, 4);
-  ASSERT_EQ(queue.internal->size, 4);
-  ASSERT_EQ(queue.internal->head, 0);
-  ASSERT_EQ(queue.internal->tail, 0);
+  ASSERT_EQ(queue.internal.capacity, 4);
+  ASSERT_EQ(queue.internal.size, 4);
+  ASSERT_EQ(queue.internal.head, 0);
+  ASSERT_EQ(queue.internal.tail, 0);
 
-  size_t got = *(size_t *)queue.internal->buffer;
+  size_t got = *(size_t *)queue.internal.buffer;
 
   ASSERT_EQ(got, 0);
 
@@ -194,19 +194,19 @@ TEST(TestQueue, resizeBuffer2) {
     enqueue_queue(&queue, i);
   }
 
-  ASSERT_EQ(queue.internal->capacity, 4);
-  ASSERT_EQ(queue.internal->size, 4);
-  ASSERT_EQ(queue.internal->head, 3);
-  ASSERT_EQ(queue.internal->tail, 3);
+  ASSERT_EQ(queue.internal.capacity, 4);
+  ASSERT_EQ(queue.internal.size, 4);
+  ASSERT_EQ(queue.internal.head, 3);
+  ASSERT_EQ(queue.internal.tail, 3);
 
   // force a buffer upgrade
   size_t ff = 42;
   enqueue_queue(&queue, ff);
 
-  ASSERT_EQ(queue.internal->capacity, 8);
-  ASSERT_EQ(queue.internal->size, 5);
-  ASSERT_EQ(queue.internal->head, 3);
-  ASSERT_EQ(queue.internal->tail, 0);
+  ASSERT_EQ(queue.internal.capacity, 8);
+  ASSERT_EQ(queue.internal.size, 5);
+  ASSERT_EQ(queue.internal.head, 3);
+  ASSERT_EQ(queue.internal.tail, 0);
 
   free_queue(&queue);
 }

@@ -20,7 +20,9 @@ typedef struct VectorInternal VectorInternal;
     type *payload;                                                             \
   }
 
-#define _payload_size(vector) sizeof(*(vector)->payload)
+#ifndef _payload_size
+#define _payload_size(obj) sizeof(*(obj)->payload)
+#endif
 
 // Internal function for vector this should not be used directly by anything
 // except by the public macros

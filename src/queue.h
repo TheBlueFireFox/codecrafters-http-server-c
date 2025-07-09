@@ -7,7 +7,6 @@
 
 struct QueueInternal {
   uint8_t *buffer;
-  size_t elem_size;
   size_t size;
   size_t capacity;
   size_t head;
@@ -16,9 +15,13 @@ struct QueueInternal {
 
 typedef struct QueueInternal QueueInternal;
 
+#ifndef _payload_size
+#define _payload_size(obj) sizeof(*(obj)->payload)
+#endif
+
 #define Queue(type)                                                            \
   union {                                                                      \
-    QueueInternal *internal;                                                   \
+    QueueInternal internal;                                                    \
     type *payload;                                                             \
   }
 
@@ -29,10 +32,7 @@ typedef struct QueueInternal QueueInternal;
 void _init_queue(QueueInternal *qi, size_t capacity, size_t obj_size);
 
 #define init_queue(queue, capacity)                                            \
-  do {                                                                         \
-    (queue)->internal = (QueueInternal *)malloc(sizeof(QueueInternal));        \
-    _init_queue(((queue)->internal), capacity, sizeof(*(queue)->payload));     \
-  } while (0)
+  _init_queue((&(queue)->internal), capacity, _payload_size(queue));
 
 // Internal function for queue this should not be used directly by anything
 // except by the public macros
@@ -40,31 +40,29 @@ void _init_queue(QueueInternal *qi, size_t capacity, size_t obj_size);
 // This functions frees the queue and resets everything to zero
 void _free_queue(QueueInternal *qi);
 
-#define free_queue(queue)                                                      \
-  do {                                                                         \
-    _free_queue((queue)->internal);                                            \
-    free((queue)->internal);                                                   \
-    (queue)->internal = NULL;                                                  \
-  } while (0)
+#define free_queue(queue) _free_queue(&(queue)->internal);
 
 bool _is_full_queue(QueueInternal *qi);
 
-#define is_full_queue(queue) _is_full_queue((queue)->internal)
+#define is_full_queue(queue) _is_full_queue(&(queue)->internal)
 
 bool _is_empty_queue(QueueInternal *qi);
 
-#define is_empty_queue(queue) _is_empty_queue((queue)->internal)
+#define is_empty_queue(queue) _is_empty_queue(&(queue)->internal)
 
-void _enqueue_queue(QueueInternal *qi, uint8_t const *const val);
+void _enqueue_queue(QueueInternal *qi, uint8_t const *const val,
+                    size_t obj_size);
 
 #define enqueue_queue(queue, item)                                             \
-  _enqueue_queue((queue)->internal,                                            \
-                 (uint8_t const *const)(1 ? &(item) : ((queue)->payload)))
+  _enqueue_queue(&(queue)->internal,                                           \
+                 (uint8_t const *const)(1 ? &(item) : ((queue)->payload)),     \
+                 _payload_size(queue))
 
-bool _dequeue_queue(QueueInternal *qi, uint8_t *val);
+bool _dequeue_queue(QueueInternal *qi, uint8_t *val, size_t obj_size);
 
 #define dequeue_queue(queue, item)                                             \
-  _dequeue_queue((queue)->internal,                                            \
-                 (uint8_t *)(1 ? (item) : ((queue)->payload)))
+  _dequeue_queue(&(queue)->internal,                                           \
+                 (uint8_t *)(1 ? (item) : ((queue)->payload)),                 \
+                 _payload_size(queue))
 
 #endif
