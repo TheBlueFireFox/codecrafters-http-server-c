@@ -78,7 +78,7 @@ TEST(TestVector, realloc) {
   free_vector(&vector);
 }
 
-TEST(TestVector, foreach) {
+TEST(TestVector, forEach) {
   Vector(size_t) vector;
   init_vector_with_capacity(&vector, 10);
 
@@ -92,7 +92,7 @@ TEST(TestVector, foreach) {
 
   std::vector<size_t> v;
 
-  for (each(elem, &vector)) {
+  for (each_vector(elem, &vector)) {
     v.push_back(*elem);
   }
 
@@ -137,28 +137,28 @@ TEST(TestVector, foreachComplexType) {
   for (size_t i = 0; i < 10; i += 1) {
     auto exp = res[i];
     auto got = get[i];
-    EXPECT_STREQ(exp.key, got.key);
-    EXPECT_STREQ(exp.value, got.value);
+    ASSERT_STREQ(exp.key, got.key);
+    ASSERT_STREQ(exp.value, got.value);
   }
 
   std::vector<Foo> feach;
 
-  for (each(elem, &vector)) {
+  for (each_vector(elem, &vector)) {
     feach.push_back(*elem);
   }
 
   for (size_t i = 0; i < 10; i += 1) {
     auto exp = res[i];
     auto got = feach[i];
-    EXPECT_STREQ(exp.key, got.key);
-    EXPECT_STREQ(exp.value, got.value);
+    ASSERT_STREQ(exp.key, got.key);
+    ASSERT_STREQ(exp.value, got.value);
   }
 
   for (size_t i = 0; i < 10; i += 1) {
     auto got_get = get[i];
     auto got_feach = feach[i];
-    EXPECT_STREQ(got_get.key, got_feach.key);
-    EXPECT_STREQ(got_get.value, got_feach.value);
+    ASSERT_STREQ(got_get.key, got_feach.key);
+    ASSERT_STREQ(got_get.value, got_feach.value);
   }
 
   free_vector(&vector);

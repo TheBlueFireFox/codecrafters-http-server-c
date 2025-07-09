@@ -119,7 +119,7 @@ size_t write_status(uint8_t *const buf, HttpStatus status) {
 
 size_t write_headers(uint8_t *const buf, HttpHeaders *headers) {
   size_t size = 0;
-  for (each(header, &headers->headers)) {
+  for (each_vector(header, &headers->headers)) {
     size += sprintf((char *)buf + size, "%s: %s" ENDLINE, header->key,
                     header->value);
   }

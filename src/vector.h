@@ -101,12 +101,12 @@ void *_search_vector(VectorInternal *vec, size_t obj_size, const void *key,
   _search_vector((&(vector)->internal), _payload_size(vector), key, comp_fn)
 
 // C23 extention typeof
-#define _each(item, array, type, length)                                       \
+#define _each_vector(item, array, type, length)                                \
   type p = (type)(array), (item) = p;                                          \
   p < ((type)((array))) + length;                                              \
   p += 1, (item) = p
 
-#define each(item, vector)                                                     \
-  _each(item, (vector)->internal.ptr, typeof(((vector)->payload)),             \
-        (vector)->internal.len)
+#define each_vector(item, vector)                                              \
+  _each_vector(item, (vector)->internal.ptr, typeof(((vector)->payload)),      \
+               (vector)->internal.len)
 #endif
