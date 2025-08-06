@@ -60,6 +60,28 @@ TEST(TestVector, get) {
   free_vector(&vector);
 }
 
+TEST(TestVector, clear) {
+  Vector(size_t) vector;
+  init_vector_with_capacity(&vector, 1);
+  size_t exp = ~0;
+
+  size_t got;
+  bool is_valid = get_vector(&vector, 0, &got);
+  ASSERT_FALSE(is_valid);
+
+  push_vector(&vector, exp);
+
+  ASSERT_EQ(vector.internal.capacity, 1);
+  ASSERT_EQ(vector.internal.len, 1);
+
+  clear_vector(&vector);
+
+  ASSERT_EQ(vector.internal.capacity, 1);
+  ASSERT_EQ(vector.internal.len, 0);
+
+  free_vector(&vector);
+}
+
 TEST(TestVector, realloc) {
   Vector(size_t) vector;
   init_vector(&vector);

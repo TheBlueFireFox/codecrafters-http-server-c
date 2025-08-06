@@ -43,6 +43,8 @@ static void _realloc_vector(VectorInternal *vec, size_t obj_size) {
   ASSERT(vec->ptr != NULL);
 }
 
+void _clear_vector(VectorInternal *vec) { vec->len = 0; }
+
 void _push_vector(VectorInternal *vec, uint8_t const *const elem,
                   size_t obj_size) {
   if (vec->capacity == vec->len) {

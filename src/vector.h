@@ -50,7 +50,7 @@ void _init_vector_with_capacity(VectorInternal *vec, size_t capacity,
                                _payload_size(vector));                         \
   } while (0)
 
-// Internal function for queue this should not be used directly by anything
+// Internal function for vector this should not be used directly by anything
 // except by the public macros
 //
 // This functions frees the vector and resets everything to zero
@@ -58,7 +58,7 @@ void _free_vector(VectorInternal *vec);
 
 #define free_vector(vector) _free_vector(&(vector)->internal)
 
-// Internal function for queue this should not be used directly by anything
+// Internal function for vector this should not be used directly by anything
 // except by the public macros
 //
 // This functions return the vectors len
@@ -66,7 +66,15 @@ size_t _len_vector(VectorInternal *vec);
 
 #define len_vector(vector) _len_vector(&(vector)->internal)
 
-// Internal function for queue this should not be used directly by anything
+// Internal function for vector this should not be used directly by anything
+// except by the public macros
+//
+// This functions resets the vector size
+ void _clear_vector(VectorInternal *vec);
+
+#define clear_vector(vector) _clear_vector(&(vector)->internal)
+
+// Internal function for vector this should not be used directly by anything
 // except by the public macros
 //
 // This functions adds an element to the vector
@@ -88,7 +96,7 @@ bool _get_vector(VectorInternal *vec, size_t idx, uint8_t *const val,
 
 typedef int (*compFn)(const void *p1, const void *p2);
 
-// Internal function for queue this should not be used directly by anything
+// Internal function for vector this should not be used directly by anything
 // except by the public macros
 //
 // This functions will sort the whole vector inplace using the qsort function
