@@ -69,6 +69,6 @@ bool starts_with(const char *buf, const char *with);
 // - -1 if there is no match at all
 // - 0 if everything matches and no wildcards are used
 // - n from which offset the wildcard WILDCARD is found
-size_t starts_with_wildcard(const char *buf, const char *with);
+ssize_t starts_with_wildcard(const char *buf, const char *with);
 
 #endif // !UTILS
