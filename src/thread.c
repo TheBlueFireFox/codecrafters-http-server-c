@@ -82,8 +82,12 @@ void free_threadpool(ThreadPool *pool) {
     thrd_join(pool->thread[i], NULL);
   }
 
-  // TODO: loop over all the queue elements and free them
   mtx_lock(&pool->state->mutex);
+  while (!is_empty_queue(&pool->state->queue)) {
+    ThreadTask tt;
+    dequeue_queue(&pool->state->queue, &tt);
+    free(tt);
+  }
   free_queue(&pool->state->queue);
   mtx_unlock(&pool->state->mutex);
   mtx_destroy(&pool->state->mutex);
