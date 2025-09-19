@@ -11,7 +11,7 @@ static int thread_start(void *arg) {
   ThreadPoolState *info = arg;
 
   while (1) {
-    if (!atomic_load(info->is_active)) {
+    if (!atomic_load(&info->is_active)) {
       break;
     }
 
@@ -41,12 +41,12 @@ ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
   thrd_t *thread = calloc(size, sizeof(thrd_t));
 
   ThreadPoolState *state = malloc(sizeof(ThreadPoolState));
-  state->is_active = malloc(sizeof(atomic_bool));
+  state->is_active = false;
 
   mtx_init(&state->mutex, mtx_plain);
   cnd_init(&state->cond);
 
-  atomic_store(state->is_active, true);
+  atomic_store(&state->is_active, true);
   init_queue(&state->queue, THREAD_TASK_QUEUE_SIZE);
   state->fn = fn;
 
@@ -73,7 +73,7 @@ void add_threaded_task(ThreadPool *pool, void *task) {
 }
 
 void free_threadpool(ThreadPool *pool) {
-  atomic_store(pool->state->is_active, false);
+  atomic_store(&pool->state->is_active, false);
 
   // wake all threads
   cnd_broadcast(&pool->state->cond);
@@ -88,7 +88,6 @@ void free_threadpool(ThreadPool *pool) {
   mtx_unlock(&pool->state->mutex);
   mtx_destroy(&pool->state->mutex);
 
-  free(pool->state->is_active);
   free(pool->state);
   free(pool->thread);
 }

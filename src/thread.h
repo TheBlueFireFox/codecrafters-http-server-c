@@ -19,7 +19,7 @@ struct ThreadPoolState {
   Queue(ThreadTask) queue;
   mtx_t mutex;
   cnd_t cond;
-  atomic_bool *is_active;
+  atomic_bool is_active;
   ThreadFunction fn;
 };
 
