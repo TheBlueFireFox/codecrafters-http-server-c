@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stddef.h>
 
 #include "utils.h"
@@ -20,31 +21,31 @@ bool starts_with(const char *buf, const char *with) {
 // - 0 if everything matches and no wildcards are used
 // - n from which offset the wildcard WILDCARD is found
 ssize_t starts_with_wildcard(const char *buf, const char *with) {
-  size_t i = 0;
-  for(;;) {
-    char a = *(buf + i);
-    char b = *(with + i);
+  ssize_t idx = 0;
+  for (;;) {
+    char left = *(buf + idx);
+    char right = *(with + idx);
 
     // A > B (no wildcard)
-    if (b == WILDCARD) {
-      return i;
+    if (right == WILDCARD) {
+      return idx;
     }
 
-    if (a != b) {
+    if (left != right) {
       return NO_MATCH;
     }
 
     // A == B (no wildcard)
-    if (a == '\0' && b == '\0') {
+    if (left == '\0' && right == '\0') {
       return ALL_MATCH;
     }
 
     // A > B (no wildcard)
     // A < B (no wildcard)
-    if (a == '\0' || b == '\0') {
+    if (left == '\0' || right == '\0') {
       return NO_MATCH;
     }
 
-    i += 1;
+    idx += 1;
   }
 }

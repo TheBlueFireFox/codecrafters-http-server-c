@@ -4,89 +4,95 @@
 #include "queue.h"
 #include "utils.h"
 
-void _init_queue(QueueInternal *qi, size_t capacity, size_t obj_size) {
-  qi->buffer = NULL;
-  qi->head = 0;
-  qi->tail = 0;
-  qi->size = 0;
-  qi->capacity = capacity;
+void init_queue_impl(QueueInternal *queue, size_t capacity, size_t obj_size) {
+  queue->buffer = NULL;
+  queue->head = 0;
+  queue->tail = 0;
+  queue->size = 0;
+  queue->capacity = capacity;
 
   // add some initial capacity
-  qi->buffer = malloc(capacity * obj_size);
-  ASSERT(qi->buffer != NULL);
+  queue->buffer = malloc(capacity * obj_size);
+  ASSERT(queue->buffer != NULL);
 }
 
-void _free_queue(QueueInternal *qi) {
-  free(qi->buffer);
+void free_queue_impl(QueueInternal *queue) {
+  free(queue->buffer);
 
-  qi->buffer = NULL;
-  qi->size = 0;
-  qi->capacity = 0;
-  qi->head = 0;
-  qi->tail = 0;
+  queue->buffer = NULL;
+  queue->size = 0;
+  queue->capacity = 0;
+  queue->head = 0;
+  queue->tail = 0;
 }
 
-bool _is_full_queue(QueueInternal *qi) { return qi->capacity == qi->size; }
+bool is_full_queue_impl(QueueInternal *queue) {
+  return queue->capacity == queue->size;
+}
 
-bool _is_empty_queue(QueueInternal *qi) { return qi->size == 0; }
+bool is_empty_queue_impl(QueueInternal *queue) { return queue->size == 0; }
 
-static void _resize_queue(QueueInternal *qi, size_t obj_size) {
+static void resize_queue(QueueInternal *queue, size_t obj_size) {
   // no need to resize queue
-  if (!_is_full_queue(qi)) {
+  if (!is_full_queue_impl(queue)) {
     return;
   }
 
-  debug("RESIZE head %zu - tail %zu - size %zu\n", qi->head, qi->tail,
-        qi->size);
+  debug("RESIZE head %zu - tail %zu - size %zu\n", queue->head, queue->tail,
+        queue->size);
 
-  size_t old_capacity = qi->capacity;
+  size_t old_capacity = queue->capacity;
 
-  qi->capacity *= 2;
+  queue->capacity *= 2;
 
-  qi->buffer = realloc(qi->buffer, qi->capacity * obj_size);
-  ASSERT(qi->buffer != NULL);
+  void *buf = realloc(queue->buffer, queue->capacity * obj_size);
+  ASSERT(buf != NULL);
 
-  if (qi->tail > qi->head) {
+  queue->buffer = buf;
+
+  if (queue->tail > queue->head) {
     return;
   }
   // move everything before tail to after the tail
 
-  size_t elem_at_start = qi->tail;
+  size_t elem_at_start = queue->tail;
 
-  memcpy(qi->buffer + (old_capacity * obj_size), qi->buffer,
+  memcpy(queue->buffer + (old_capacity * obj_size), queue->buffer,
          elem_at_start * obj_size);
-  memset(qi->buffer, 0, elem_at_start * obj_size);
+  memset(queue->buffer, 0, elem_at_start * obj_size);
 
-  qi->tail = (old_capacity + qi->head) % qi->capacity;
+  queue->tail = (old_capacity + queue->head) % queue->capacity;
 }
 
-static void _move_head_queue(QueueInternal *qi) {
-  qi->head = (qi->head + 1) % qi->capacity;
+static void move_head_queue(QueueInternal *queue) {
+  queue->head = (queue->head + 1) % queue->capacity;
 }
 
-static void _move_tail_queue(QueueInternal *qi) {
-  qi->tail = (qi->tail + 1) % qi->capacity;
+static void move_tail_queue(QueueInternal *queue) {
+  queue->tail = (queue->tail + 1) % queue->capacity;
 }
 
-void _enqueue_queue(QueueInternal *qi, uint8_t const *const val,
-                    size_t obj_size) {
-  _resize_queue(qi, obj_size);
-  qi->size += 1;
+void enqueue_queue_impl(QueueInternal *queue, uint8_t const *const val,
+                        size_t obj_size) {
+  resize_queue(queue, obj_size);
+  queue->size += 1;
 
-  memcpy(qi->buffer + qi->tail * obj_size, val, obj_size);
-  _move_tail_queue(qi);
-  debug("head %zu - tail %zu - size %zu\n", qi->head, qi->tail, qi->size);
+  memcpy(queue->buffer + (queue->tail * obj_size), val, obj_size);
+  move_tail_queue(queue);
+  debug("head %zu - tail %zu - size %zu\n", queue->head, queue->tail,
+        queue->size);
 }
 
-bool _dequeue_queue(QueueInternal *qi, uint8_t *val, size_t obj_size) {
-  if (_is_empty_queue(qi)) {
+bool dequeue_queue_impl(QueueInternal *queue, uint8_t *val, size_t obj_size) {
+  if (is_empty_queue_impl(queue)) {
     return false;
   }
-  qi->size -= 1;
+  queue->size -= 1;
 
   ASSERT(val != NULL);
-  memcpy(val, qi->buffer + qi->head * obj_size, obj_size);
-  _move_head_queue(qi);
-  debug("head %zu - tail %zu - size %zu\n", qi->head, qi->tail, qi->size);
+  memcpy(val, queue->buffer + (queue->head * obj_size), obj_size);
+  move_head_queue(queue);
+  debug("head %zu - tail %zu - size %zu\n", queue->head, queue->tail,
+        queue->size);
   return true;
 }

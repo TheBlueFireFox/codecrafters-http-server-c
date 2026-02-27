@@ -3,7 +3,6 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <poll.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -62,25 +61,28 @@ static int server_loop(int fd, AppState *state, ThreadPool *pool,
   while (atomic_load(is_running)) {
     int ret = poll(fds, ARRAY_SIZE(fds), -1);
 
-    if (ret == -1) {
-      if (errno == EINTR)
-        break;
+    if (ret == -1 && errno == EINTR) {
+      break;
+    }
 
+    if (ret == -1) {
       warn("ERROR: poll() errord out\n");
       break;
-    } else if (ret == 0) {
+    }
+
+    if (ret == 0) {
       continue;
     }
 
     int client_fd = -1;
 
-    if (fds[0].revents & POLLIN) {
-      client_fd = accept(fd, (struct sockaddr *)&client_addr, &client_addr_len);
-      debug("connected\n");
-    } else {
+    if (!(fds[0].revents & POLLIN)) {
       warn("no connections ready to process\n");
       continue;
     }
+
+    client_fd = accept(fd, (struct sockaddr *)&client_addr, &client_addr_len);
+    debug("connected\n");
 
     if (client_fd == -1) {
       break;
@@ -142,7 +144,9 @@ static int init_binding(int *server_fd) {
   hints.ai_flags = AI_PASSIVE;     // Use my IP
 
   // Get address info
-  if ((rv = getaddrinfo(NULL, PORT, &hints, &res)) != 0) {
+  rv = getaddrinfo(NULL, PORT, &hints, &res);
+
+  if (rv != 0) {
     error("getaddrinfo: %s\n", gai_strerror(rv));
     return 1;
   }
@@ -153,16 +157,20 @@ static int init_binding(int *server_fd) {
 
     if (rv == SOCKET_RES_BREAK) {
       break; // Successfully bound
-    } else if (rv == SOCKET_RES_ERROR) {
+    }
+
+    if (rv == SOCKET_RES_ERROR) {
       p = NULL;
       break;
-    } else if (rv == SOCKET_RES_CONTINE) {
+    }
+
+    if (rv == SOCKET_RES_CONTINE) {
       continue;
     }
   }
 
   if (p == NULL) {
-    fprintf(stderr, "Failed to bind\n");
+    error("Failed to bind\n");
     freeaddrinfo(res);
     return 1;
   }

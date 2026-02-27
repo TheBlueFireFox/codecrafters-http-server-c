@@ -206,7 +206,7 @@ TEST(TestVector, sorting) {
     const size_t *a = (const size_t *)l;
     const size_t *b = (const size_t *)r;
 
-    return *a - *b;
+    return static_cast<int>(*a - *b);
   };
 
   sort_vector(&vector, sort);

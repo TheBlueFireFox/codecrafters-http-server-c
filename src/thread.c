@@ -16,9 +16,9 @@ static int thread_start(void *arg) {
     }
 
     void *task = NULL;
-    mtx_lock(&info->mutex);
+    (void)mtx_lock(&info->mutex);
     bool has = dequeue_queue(&info->queue, &task);
-    mtx_unlock(&info->mutex);
+    (void)mtx_unlock(&info->mutex);
 
     if (has) {
       ASSERT(task != NULL);
@@ -28,9 +28,9 @@ static int thread_start(void *arg) {
     }
 
     // wait until queue has something to do
-    mtx_lock(&info->mutex);
-    cnd_wait(&info->cond, &info->mutex);
-    mtx_unlock(&info->mutex);
+    (void)mtx_lock(&info->mutex);
+    (void)cnd_wait(&info->cond, &info->mutex);
+    (void)mtx_unlock(&info->mutex);
   }
 
   return 0;
@@ -43,8 +43,8 @@ ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
   ThreadPoolState *state = malloc(sizeof(ThreadPoolState));
   state->is_active = false;
 
-  mtx_init(&state->mutex, mtx_plain);
-  cnd_init(&state->cond);
+  (void)mtx_init(&state->mutex, mtx_plain);
+  (void)cnd_init(&state->cond);
 
   atomic_store(&state->is_active, true);
   init_queue(&state->queue, THREAD_TASK_QUEUE_SIZE);
@@ -58,38 +58,38 @@ ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
 
   for (size_t i = 0; i < pool.size; i += 1) {
     // INIT Threadpool
-    thrd_create(&pool.thread[i], &thread_start, state);
+    (void)thrd_create(&pool.thread[i], &thread_start, state);
   }
   return pool;
 }
 
 void add_threaded_task(ThreadPool *pool, void *task) {
-  mtx_lock(&pool->state->mutex);
+  (void)mtx_lock(&pool->state->mutex);
   enqueue_queue(&pool->state->queue, task);
-  mtx_unlock(&pool->state->mutex);
+  (void)mtx_unlock(&pool->state->mutex);
 
   /* start one of the waiting threads */
-  cnd_signal(&pool->state->cond);
+  (void)cnd_signal(&pool->state->cond);
 }
 
 void free_threadpool(ThreadPool *pool) {
   atomic_store(&pool->state->is_active, false);
 
   // wake all threads
-  cnd_broadcast(&pool->state->cond);
+  (void)cnd_broadcast(&pool->state->cond);
 
   for (size_t i = 0; i < pool->size; i += 1) {
-    thrd_join(pool->thread[i], NULL);
+    (void)thrd_join(pool->thread[i], NULL);
   }
 
-  mtx_lock(&pool->state->mutex);
+  (void)mtx_lock(&pool->state->mutex);
   while (!is_empty_queue(&pool->state->queue)) {
     ThreadTask tt;
     dequeue_queue(&pool->state->queue, &tt);
     free(tt);
   }
   free_queue(&pool->state->queue);
-  mtx_unlock(&pool->state->mutex);
+  (void)mtx_unlock(&pool->state->mutex);
   mtx_destroy(&pool->state->mutex);
 
   free(pool->state);

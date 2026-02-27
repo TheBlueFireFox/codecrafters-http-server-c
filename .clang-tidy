@@ -1,0 +1,75 @@
+# .clang-tidy — C project defaults
+#
+# Notes:
+# - This is tuned for C (not C++).
+# - It emphasizes bug finding + portability, and keeps style checks modest.
+# - If you use clang-tidy via clangd/IDE, also ensure compile_commands.json exists.
+
+---
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  concurrency-*,
+  misc-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -readability-implicit-bool-conversion,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -concurrency-mt-unsafe,
+  -misc-non-private-member-variables-in-classes,
+  -misc-include-cleaner,
+  -misc-use-anonymous-namespace,
+  -misc-const-correctness,
+  -cppcoreguidelines-*,
+  -hicpp-*,
+  -modernize-*,
+  -google-*,
+  -llvm-*,
+  -llvmlibc-*,
+  -zircon-*,
+  -fuchsia-*,
+  -altera-*,
+  -abseil-*,
+  -boost-*,
+  -openmp-*,
+  -android-*,
+  -darwin-*,
+  -objc-*,
+  -mpi-*,
+  -readability-braces-around-statements
+
+WarningsAsErrors: >
+  *
+
+HeaderFilterRegex: '^(src|test)/'
+
+FormatStyle: none
+
+CheckOptions:
+  # Keep "readability" useful without being nitpicky
+  - key: readability-implicit-bool-conversion.AllowIntegerConditions
+    value: 'true'
+
+  # Common C footguns
+  - key: bugprone-narrowing-conversions.WarnOnFloatingPointNarrowingConversion
+    value: 'true'
+
+  # If you have your own assert-like macro names, list them
+  - key: bugprone-assert-side-effect.AssertMacros
+    value: 'assert,ASSERT'
+
+  # CERT defaults are sometimes strict; these soften a couple of common cases
+  - key: cert-err34-c.CheckedFunctions
+    value: 'scanf,fscanf,sscanf,snprintf,vsnprintf,strncpy,memcpy,memmove'
+
+  # Reduce false positives if you intentionally use NULL in C
+  - key: clang-analyzer-core.NullDereference.SuppressNullValueDereference
+    value: 'false'
+...

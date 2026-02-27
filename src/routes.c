@@ -12,6 +12,8 @@
 #include "routes.h"
 #include "utils.h"
 
+#define BUFFER_SIZE 1024
+
 typedef const char *HttpParams;
 
 typedef size_t (*fnPtr)(uint8_t *const buf, HttpRequest *req, HttpParams params,
@@ -19,8 +21,8 @@ typedef size_t (*fnPtr)(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
 // SEE: stackoverflow
 // https://stackoverflow.com/questions/49622938/gzip-compression-using-zlib-into-buffer
-int compress_to_gzip(const uint8_t *const data, int input_size,
-                     uint8_t **output) {
+size_t compress_to_gzip(const uint8_t *const data, size_t input_size,
+                        uint8_t **output) {
   z_stream stream = {0};
   deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1F, 8,
                Z_DEFAULT_STRATEGY);
@@ -34,14 +36,14 @@ int compress_to_gzip(const uint8_t *const data, int input_size,
   stream.avail_out = max_len;
 
   deflate(&stream, Z_FINISH);
-  int len = stream.total_out;
+  uLong len = stream.total_out;
   deflateEnd(&stream);
 
   return len;
 }
 
 size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
-  char content_length[100];
+  char content_length[BUFFER_SIZE];
   HttpBody org_body = resp->body;
   uint8_t *new_buf_body = NULL;
   bool has_body = resp->body.body != NULL && resp->body.len > 0;
@@ -49,7 +51,7 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
   if (has_body && resp->headers.encoding == GZIP) {
     push_header_response(resp, CONTENT_ENCODING, GZIP_ENCODING);
 
-    int len = compress_to_gzip(org_body.body, org_body.len, &new_buf_body);
+    size_t len = compress_to_gzip(org_body.body, org_body.len, &new_buf_body);
 
     resp->body = (HttpBody){
         .body = new_buf_body,
@@ -57,7 +59,7 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
     };
   }
 
-  sprintf(content_length, "%zu", resp->body.len);
+  (void)sprintf(content_length, "%zu", resp->body.len);
   push_header_response(resp, CONTENT_LENGTH, content_length);
 
   size_t res = write_response(buf, resp);
@@ -117,8 +119,8 @@ size_t handle_echo(uint8_t *const buf, HttpRequest *req, HttpParams params,
   HttpResponse resp =
       init_response(OK, req->headers.encoding, req->headers.connection);
 
-  uint8_t body_buf[1024];
-  strcpy((char *)body_buf, params);
+  uint8_t body_buf[BUFFER_SIZE];
+  strlcpy((char *)body_buf, params, ARRAY_SIZE(body_buf));
 
   resp.body = (HttpBody){
       .body = body_buf,
@@ -139,11 +141,12 @@ size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
 
   (void)params;
   (void)state;
-  uint8_t body_buf[1024];
+
+  uint8_t body_buf[BUFFER_SIZE];
 
   // Assuming there is a user agent header
   const char *user_agent = find_in_header(&req->headers, USER_AGENT);
-  strcpy((char *)body_buf, user_agent);
+  strlcpy((char *)body_buf, user_agent, ARRAY_SIZE(body_buf));
 
   HttpResponse resp =
       init_response(OK, req->headers.encoding, req->headers.connection);
@@ -173,7 +176,7 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
           ? ""
           : "/";
 
-  sprintf(filepath, "%s%s%s", state->directory, delim, params);
+  (void)sprintf(filepath, "%s%s%s", state->directory, delim, params);
 
   struct stat file_stat;
   size_t res = stat(filepath, &file_stat);
@@ -227,7 +230,7 @@ size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
           ? ""
           : "/";
 
-  sprintf(filepath, "%s%s%s", state->directory, delim, params);
+  (void)sprintf(filepath, "%s%s%s", state->directory, delim, params);
 
   int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 

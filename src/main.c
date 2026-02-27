@@ -3,22 +3,20 @@
 #include <string.h>
 
 #include "server.h"
-#include "utils.h"
 
 atomic_bool is_running = false;
 
 void sig_int_handler(int signum) {
   (void)signum;
-  info("sigint <%i>\n", signum);
   atomic_store(&is_running, false);
 }
 
 int main(int argc, char *argv[]) {
   // Disable output buffering
-  setbuf(stdout, NULL);
-  setbuf(stderr, NULL);
+  (void)setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+  (void)setvbuf(stderr, NULL, _IONBF, BUFSIZ);
 
-  signal(SIGINT, sig_int_handler);
+  (void)signal(SIGINT, sig_int_handler);
   atomic_store(&is_running, true);
 
   const char *directory = "/tmp";

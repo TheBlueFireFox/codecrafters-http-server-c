@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -22,7 +23,7 @@
 
 // cmpheaders is the reference function used by qsort to sort
 // all the HttpHeaders.
-static int cmpheaders(const void *p1, const void *p2) {
+static int cmpheaders(const void *left, const void *right) {
   //  The  contents of the array are sorted in ascending order according to a
   //  comparison function pointed to by compar, which is called with two
   //  arguments that point to the objects being compared.
@@ -31,23 +32,23 @@ static int cmpheaders(const void *p1, const void *p2) {
   //  greater than zero if the first argument is considered to be respec‐ tively
   //  less than, equal to, or greater than the second.  If two members compare
   //  as equal, their order in the sorted array is undefined.
-  const HttpHeader *pi = p1;
-  const HttpHeader *pii = p2;
-  return strcasecmp(pi->key, pii->key);
+  const HttpHeader *header1 = left;
+  const HttpHeader *header2 = right;
+  return strcasecmp(header1->key, header2->key);
 }
 
 // comkey is the reference function used by bsearch to find the matching header
 // pair
-static int cmpkey(const void *key, const void *elem) {
+static int cmpkey(const void *raw_key, const void *raw_elem) {
   //   The contents of the array should be in ascending sorted order according
   //   to the comparison function referenced by compkey. The compkey routine is
   //   expected to have two arguments which point to the key object and to an
   //   array member, in that order, and should return an integer less than,
   //   equal to, or greater than zero if the key object is found, respectively,
   //   to be less than, to match, or be greater than the  array member.
-  const char *const *p1 = key;
-  const HttpHeader *p2 = elem;
-  return strcasecmp(*p1, p2->key);
+  const char *const *key = (const char *const *)raw_key;
+  const HttpHeader *elem = raw_elem;
+  return strcasecmp(*key, elem->key);
 }
 
 // sort_headers is a helper function that makes sure to sort the http headers
@@ -135,16 +136,16 @@ size_t write_body(uint8_t *const buf, HttpBody *body) {
 }
 
 size_t write_response(uint8_t *const buf, HttpResponse *resp) {
-  size_t s = 0;
-  s += write_version(buf, resp->version);
-  buf[s] = ' ';
-  s += 1;
-  s += write_status(buf + s, resp->status);
-  s += write_endline(buf + s);
-  s += write_headers(buf + s, &resp->headers);
-  s += write_body(buf + s, &resp->body);
+  size_t offset = 0;
+  offset += write_version(buf, resp->version);
+  buf[offset] = ' ';
+  offset += 1;
+  offset += write_status(buf + offset, resp->status);
+  offset += write_endline(buf + offset);
+  offset += write_headers(buf + offset, &resp->headers);
+  offset += write_body(buf + offset, &resp->body);
 
-  return s;
+  return offset;
 }
 
 size_t parse_method(const uint8_t *buf, HttpMethod *meth) {
@@ -181,13 +182,13 @@ size_t parse_version(const uint8_t *buf, HttpVersion *version) {
 // User-Agent: curl/7.64.1\r\n  // Header that describes the client's user
 // Accept: */*\r\n              // Header that specifies which media types
 size_t parse_headers(uint8_t *buf, HttpHeaders *headers) {
-  size_t s = 0;
+  size_t offset = 0;
   // end of headers
-  while (!(*(buf + s) == '\r' && *(buf + s + 1) == '\n')) {
+  while (!(*(buf + offset) == '\r' && *(buf + offset + 1) == '\n')) {
     // otherwise headers
     // key
-    char *key = (char *)buf + s;
-    char *value = strstr((char *)buf + s, ": ");
+    char *key = (char *)buf + offset;
+    char *value = strstr((char *)buf + offset, ": ");
     *value = '\0';
 
     // value
@@ -197,7 +198,7 @@ size_t parse_headers(uint8_t *buf, HttpHeaders *headers) {
 
     // + 2 for \r\n
 
-    s += end_value - key + 2;
+    offset += end_value - key + 2;
 
     push_header_headers(headers, key, value);
   }
@@ -210,71 +211,92 @@ size_t parse_headers(uint8_t *buf, HttpHeaders *headers) {
     headers->encoding = GZIP;
   }
 
-  return s;
+  return offset;
 }
 
-HttpRequest parse_request(uint8_t *buf) {
+size_t convert_to_int(const char *content_len) {
+  if (content_len == NULL) {
+    return 0;
+  }
+  // there is a body attached to this msg
+  errno = 0;
+  const int BASE = 10;
+  size_t res = strtoll(content_len, NULL, BASE);
+
+  if (errno != 0) {
+    perror("strtol");
+    exit(EXIT_FAILURE);
+  }
+  return res;
+}
+
+size_t parse_request_line(uint8_t *buf, HttpMethod *method,
+                          HttpVersion *version, const char **url) {
   // GET                          // HTTP method
   // /index.html                  // Request target
   // HTTP/1.1                     // HTTP version
   // \r\n                         // CRLF that marks the end of the request line
-  HttpMethod method = GET;
-  size_t s = parse_method(buf, &method);
+  size_t offset = parse_method(buf, method);
 
-  if (buf[s] != ' ') {
+  if (buf[offset] != ' ') {
     error("INVALID: HTTP string\n");
     exit(1);
   }
-  s += 1;
+  offset += 1;
 
-  const char *url = (char *)buf + s;
-  char *end = strstr((char *)buf + s, " ");
+  *url = (char *)buf + offset;
+  char *end = strstr((char *)buf + offset, " ");
   // allow the url to automatically work
   *end = '\0';
 
-  s += strlen(url) + 1;
+  offset += strlen(*url) + 1;
 
-  HttpVersion version;
-  s += parse_version(buf + s, &version);
+  offset += parse_version(buf + offset, version);
 
-  if (!starts_with((const char *)buf + s, ENDLINE)) {
+  if (!starts_with((const char *)buf + offset, ENDLINE)) {
     error("INVALID: line does not stop with \\r\\n\n");
     exit(1);
   }
 
-  s += 2;
+  offset += 2;
+  return offset;
+}
+
+HttpRequest parse_request(uint8_t *buf) {
+
+  HttpMethod method = GET;
+  HttpVersion version = HTTP1_1;
+  const char *url = NULL;
+  size_t offset = parse_request_line(buf, &method, &version, &url);
 
   HttpHeaders headers = {.encoding = NO_ENCODING,
                          .connection = {.active = true},
                          .is_sorted = false};
+
   init_vector(&headers.headers);
 
-  s += parse_headers(buf + s, &headers);
+  offset += parse_headers(buf + offset, &headers);
 
-  if (!starts_with((const char *)buf + s, ENDLINE)) {
+  if (!starts_with((const char *)buf + offset, ENDLINE)) {
     error("INVALID: headers don't stop with \\r\\n\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
-  s += 2;
+  offset += 2;
 
   const char *connection_state = find_in_header(&headers, CONNECTION);
 
   // Connection is kept open or not
-  headers.connection.active = connection_state == NULL ||
-                              strcmp(connection_state, CONNECTION_CLOSE) != 0;
+  headers.connection.active =
+      ((connection_state == NULL ||
+        strcmp(connection_state, CONNECTION_CLOSE) != 0) != 0);
 
   const char *content_len = find_in_header(&headers, CONTENT_LENGTH);
 
   HttpBody body = {
-      .body = buf + s,
-      .len = 0,
+      .body = buf + offset,
+      .len = convert_to_int(content_len),
   };
-
-  if (content_len != NULL) {
-    // there is a body attached to this msg
-    body.len = atoll(content_len);
-  }
 
   HttpRequest req = {
       .method = method,
