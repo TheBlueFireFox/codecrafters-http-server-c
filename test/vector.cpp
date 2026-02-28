@@ -7,114 +7,114 @@ extern "C" {
 
 TEST(TestVector, empty) {
   Vector(size_t) vector;
-  init_vector(&vector);
+  vector_init(&vector);
 
-  free_vector(&vector);
+  vector_free(&vector);
 }
 
 TEST(TestVector, withVector) {
   Vector(size_t) vector;
-  init_vector_with_capacity(&vector, 1);
+  vector_init_with_capacity(&vector, 1);
 
-  free_vector(&vector);
+  vector_free(&vector);
 }
 
 TEST(TestVector, withCapacityPush) {
   Vector(size_t) vector;
-  init_vector_with_capacity(&vector, 1);
+  vector_init_with_capacity(&vector, 1);
   ASSERT_EQ(vector.internal.capacity, 1);
-  ASSERT_EQ(len_vector(&vector), 0);
+  ASSERT_EQ(vector_len(&vector), 0);
 
   size_t exp = ~0;
 
-  push_vector(&vector, exp);
+  vector_push(&vector, exp);
 
   size_t got;
-  bool is_valid = get_vector(&vector, 0, &got);
+  bool is_valid = vector_get(&vector, 0, &got);
   ASSERT_TRUE(is_valid);
   ASSERT_EQ(exp, got);
 
   ASSERT_EQ(vector.internal.len, 1);
   ASSERT_EQ(vector.internal.capacity, 1);
 
-  free_vector(&vector);
+  vector_free(&vector);
 }
 
 TEST(TestVector, get) {
   Vector(size_t) vector;
-  init_vector_with_capacity(&vector, 1);
+  vector_init_with_capacity(&vector, 1);
   size_t exp = ~0;
 
   size_t got;
-  bool is_valid = get_vector(&vector, 0, &got);
+  bool is_valid = vector_get(&vector, 0, &got);
   ASSERT_FALSE(is_valid);
 
-  push_vector(&vector, exp);
+  vector_push(&vector, exp);
 
   ASSERT_EQ(vector.internal.capacity, 1);
   ASSERT_EQ(vector.internal.len, 1);
 
-  is_valid = get_vector(&vector, 0, &got);
+  is_valid = vector_get(&vector, 0, &got);
   ASSERT_TRUE(is_valid);
 
-  free_vector(&vector);
+  vector_free(&vector);
 }
 
 TEST(TestVector, clear) {
   Vector(size_t) vector;
-  init_vector_with_capacity(&vector, 1);
+  vector_init_with_capacity(&vector, 1);
   size_t exp = ~0;
 
   size_t got;
-  bool is_valid = get_vector(&vector, 0, &got);
+  bool is_valid = vector_get(&vector, 0, &got);
   ASSERT_FALSE(is_valid);
 
-  push_vector(&vector, exp);
+  vector_push(&vector, exp);
 
   ASSERT_EQ(vector.internal.capacity, 1);
   ASSERT_EQ(vector.internal.len, 1);
 
-  clear_vector(&vector);
+  vector_clear(&vector);
 
   ASSERT_EQ(vector.internal.capacity, 1);
   ASSERT_EQ(vector.internal.len, 0);
 
-  free_vector(&vector);
+  vector_free(&vector);
 }
 
 TEST(TestVector, realloc) {
   Vector(size_t) vector;
-  init_vector(&vector);
+  vector_init(&vector);
 
   size_t exp = ~0;
-  push_vector(&vector, exp);
+  vector_push(&vector, exp);
 
   size_t got;
-  bool is_valid = get_vector(&vector, 0, &got);
+  bool is_valid = vector_get(&vector, 0, &got);
   ASSERT_TRUE(is_valid);
   ASSERT_EQ(exp, got);
 
   ASSERT_EQ(vector.internal.len, 1);
   ASSERT_EQ(vector.internal.capacity, VECTOR_DEFAULT_CAPACITY);
 
-  free_vector(&vector);
+  vector_free(&vector);
 }
 
 TEST(TestVector, forEach) {
   Vector(size_t) vector;
-  init_vector_with_capacity(&vector, 10);
+  vector_init_with_capacity(&vector, 10);
 
   std::vector<size_t> res;
 
   for (size_t i = 0; i < 10; i += 1) {
     size_t ii = 10 - ~i;
     res.push_back(ii);
-    push_vector(&vector, ii);
+    vector_push(&vector, ii);
   }
 
   std::vector<size_t> v;
 
-  for (each_vector(elem, &vector)) {
+  for (vector_each(elem, &vector)) {
     v.push_back(*elem);
   }
 
@@ -124,7 +124,7 @@ TEST(TestVector, forEach) {
     ASSERT_EQ(l, r);
   }
 
-  free_vector(&vector);
+  vector_free(&vector);
 }
 
 TEST(TestVector, foreachComplexType) {
@@ -133,7 +133,7 @@ TEST(TestVector, foreachComplexType) {
     const char *value;
   };
   Vector(Foo) vector;
-  init_vector_with_capacity(&vector, 10);
+  vector_init_with_capacity(&vector, 10);
 
   const char ABC[] = "ABCDEFGHIJKLMPNOQRSTUVWXYZ";
 
@@ -143,14 +143,14 @@ TEST(TestVector, foreachComplexType) {
     Foo f = Foo(ABC + i, ABC + 10 + i);
 
     res.push_back(f);
-    push_vector(&vector, f);
+    vector_push(&vector, f);
   }
 
   std::vector<Foo> get;
 
   for (size_t i = 0; i < 10; i += 1) {
     Foo c;
-    bool is_valid = get_vector(&vector, i, &c);
+    bool is_valid = vector_get(&vector, i, &c);
 
     ASSERT_TRUE(is_valid);
     get.push_back(c);
@@ -165,7 +165,7 @@ TEST(TestVector, foreachComplexType) {
 
   std::vector<Foo> feach;
 
-  for (each_vector(elem, &vector)) {
+  for (vector_each(elem, &vector)) {
     feach.push_back(*elem);
   }
 
@@ -183,21 +183,21 @@ TEST(TestVector, foreachComplexType) {
     ASSERT_STREQ(got_get.value, got_feach.value);
   }
 
-  free_vector(&vector);
+  vector_free(&vector);
 }
 
 TEST(TestVector, sorting) {
   Vector(size_t) vector;
-  init_vector_with_capacity(&vector, 1);
+  vector_init_with_capacity(&vector, 1);
 
   for (size_t i = 0; i < 10; i += 1) {
     size_t ii = 10 - i;
-    push_vector(&vector, ii);
+    vector_push(&vector, ii);
   }
 
   for (size_t i = 0; i < 10; i += 1) {
     size_t got;
-    bool is_valid = get_vector(&vector, i, &got);
+    bool is_valid = vector_get(&vector, i, &got);
     ASSERT_TRUE(is_valid);
     ASSERT_EQ(got, 10 - i);
   }
@@ -209,14 +209,14 @@ TEST(TestVector, sorting) {
     return static_cast<int>(*a - *b);
   };
 
-  sort_vector(&vector, sort);
+  vector_sort(&vector, sort);
 
   for (size_t i = 0; i < 10; i += 1) {
     size_t got;
-    bool is_valid = get_vector(&vector, i, &got);
+    bool is_valid = vector_get(&vector, i, &got);
     ASSERT_TRUE(is_valid);
     ASSERT_EQ(got, i + 1);
   }
 
-  free_vector(&vector);
+  vector_free(&vector);
 }

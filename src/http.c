@@ -56,7 +56,7 @@ static int cmpkey(const void *raw_key, const void *raw_elem) {
 // array requires sorting)
 static void sort_headers(HttpHeaders *headers) {
   if (!headers->is_sorted) {
-    sort_vector(&headers->headers, cmpheaders);
+    vector_sort(&headers->headers, cmpheaders);
   }
   headers->is_sorted = true;
 }
@@ -68,7 +68,7 @@ static void sort_headers(HttpHeaders *headers) {
 const char *find_in_header(HttpHeaders *headers, const char *const key) {
   sort_headers(headers);
 
-  const HttpHeader *res = search_vector(&headers->headers, &key, cmpkey);
+  const HttpHeader *res = vector_search(&headers->headers, &key, cmpkey);
 
   if (res == NULL) {
     return NULL;
@@ -85,7 +85,7 @@ void push_header_headers(HttpHeaders *headers, const char *const key,
       .key = key,
   };
 
-  push_vector(&headers->headers, header);
+  vector_push(&headers->headers, header);
 }
 
 // // Status line
@@ -120,7 +120,7 @@ size_t write_status(uint8_t *const buf, HttpStatus status) {
 
 size_t write_headers(uint8_t *const buf, HttpHeaders *headers) {
   size_t size = 0;
-  for (each_vector(header, &headers->headers)) {
+  for (vector_each(header, &headers->headers)) {
     size += sprintf((char *)buf + size, "%s: %s" ENDLINE, header->key,
                     header->value);
   }
@@ -273,7 +273,7 @@ HttpRequest parse_request(uint8_t *buf) {
                          .connection = {.active = true},
                          .is_sorted = false};
 
-  init_vector(&headers.headers);
+  vector_init(&headers.headers);
 
   offset += parse_headers(buf + offset, &headers);
 
@@ -309,13 +309,13 @@ HttpRequest parse_request(uint8_t *buf) {
   return req;
 }
 
-void free_http_request(HttpRequest *req) { free_vector(&req->headers.headers); }
+void free_http_request(HttpRequest *req) { vector_free(&req->headers.headers); }
 
 HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding,
                            HttpConnectionState connection_status) {
   HttpHeaders headers = {
       .encoding = encoding, .connection = connection_status, .is_sorted = true};
-  init_vector(&headers.headers);
+  vector_init(&headers.headers);
 
   const char *key = CONNECTION;
   const char *value = CONNECTION_ALIVE;
@@ -347,5 +347,5 @@ void push_header_response(HttpResponse *resp, const char *const key,
 }
 
 void free_http_response(HttpResponse *resp) {
-  free_vector(&resp->headers.headers);
+  vector_free(&resp->headers.headers);
 }

@@ -5,13 +5,13 @@
 
 #include "utils.h"
 
-void init_vector_impl(VectorInternal *vec) {
+void vector_init_impl(VectorInternal *vec) {
   vec->capacity = 0;
   vec->len = 0;
   vec->ptr = NULL;
 }
 
-void init_vector_with_capacity_impl(VectorInternal *vec, size_t capacity,
+void vector_init_with_capacity_impl(VectorInternal *vec, size_t capacity,
                                     size_t obj_size) {
   vec->capacity = capacity;
   vec->len = 0;
@@ -19,7 +19,7 @@ void init_vector_with_capacity_impl(VectorInternal *vec, size_t capacity,
   ASSERT(vec->ptr != NULL);
 }
 
-void free_vector_impl(VectorInternal *vec) {
+void vector_free_impl(VectorInternal *vec) {
   if (vec->ptr != NULL) {
     free(vec->ptr);
   }
@@ -28,7 +28,7 @@ void free_vector_impl(VectorInternal *vec) {
   vec->len = 0;
 }
 
-size_t len_vector_impl(VectorInternal *vec) { return vec->len; }
+size_t vector_len_impl(VectorInternal *vec) { return vec->len; }
 
 static void realloc_vector(VectorInternal *vec, size_t obj_size) {
   if (vec->ptr == NULL) {
@@ -48,9 +48,9 @@ static void realloc_vector(VectorInternal *vec, size_t obj_size) {
   ASSERT(vec->ptr != NULL);
 }
 
-void clear_vector_impl(VectorInternal *vec) { vec->len = 0; }
+void vector_clear_impl(VectorInternal *vec) { vec->len = 0; }
 
-void push_vector_impl(VectorInternal *vec, uint8_t const *const elem,
+void vector_push_impl(VectorInternal *vec, uint8_t const *const elem,
                       size_t obj_size) {
   if (vec->capacity == vec->len) {
     realloc_vector(vec, obj_size);
@@ -60,7 +60,7 @@ void push_vector_impl(VectorInternal *vec, uint8_t const *const elem,
   vec->len += 1;
 }
 
-bool get_vector_impl(VectorInternal *vec, size_t idx, uint8_t *const val,
+bool vector_get_impl(VectorInternal *vec, size_t idx, uint8_t *const val,
                      size_t obj_size) {
   if (vec->len <= idx) {
     return false;
@@ -69,11 +69,11 @@ bool get_vector_impl(VectorInternal *vec, size_t idx, uint8_t *const val,
   return true;
 }
 
-void sort_vector_impl(VectorInternal *vec, size_t obj_size, compFn comp_fn) {
+void vector_sort_impl(VectorInternal *vec, size_t obj_size, compFn comp_fn) {
   qsort(vec->ptr, vec->len, obj_size, comp_fn);
 }
 
-void *search_vector_impl(VectorInternal *vec, size_t obj_size, const void *key,
+void *vector_search_impl(VectorInternal *vec, size_t obj_size, const void *key,
                          compFn comp_fn) {
   return bsearch(key, vec->ptr, vec->len, obj_size, comp_fn);
 }

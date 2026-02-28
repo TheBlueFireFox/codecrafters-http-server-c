@@ -17,7 +17,7 @@ static int thread_start(void *arg) {
 
     void *task = NULL;
     (void)mtx_lock(&info->mutex);
-    bool has = dequeue_queue(&info->queue, &task);
+    bool has = queue_dequeue(&info->queue, &task);
     (void)mtx_unlock(&info->mutex);
 
     if (has) {
@@ -47,7 +47,7 @@ ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
   (void)cnd_init(&state->cond);
 
   atomic_store(&state->is_active, true);
-  init_queue(&state->queue, THREAD_TASK_QUEUE_SIZE);
+  queue_init(&state->queue, THREAD_TASK_QUEUE_SIZE);
   state->fn = fn;
 
   ThreadPool pool = {
@@ -65,7 +65,7 @@ ThreadPool init_threadpool(ThreadFunction fn, size_t size) {
 
 void add_threaded_task(ThreadPool *pool, void *task) {
   (void)mtx_lock(&pool->state->mutex);
-  enqueue_queue(&pool->state->queue, task);
+  queue_enqueue(&pool->state->queue, task);
   (void)mtx_unlock(&pool->state->mutex);
 
   /* start one of the waiting threads */
@@ -83,12 +83,12 @@ void free_threadpool(ThreadPool *pool) {
   }
 
   (void)mtx_lock(&pool->state->mutex);
-  while (!is_empty_queue(&pool->state->queue)) {
+  while (!queue_is_empty(&pool->state->queue)) {
     ThreadTask tt;
-    dequeue_queue(&pool->state->queue, &tt);
+    queue_dequeue(&pool->state->queue, &tt);
     free(tt);
   }
-  free_queue(&pool->state->queue);
+  queue_free(&pool->state->queue);
   (void)mtx_unlock(&pool->state->mutex);
   mtx_destroy(&pool->state->mutex);
 

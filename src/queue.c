@@ -4,7 +4,7 @@
 #include "queue.h"
 #include "utils.h"
 
-void init_queue_impl(QueueInternal *queue, size_t capacity, size_t obj_size) {
+void queue_init_impl(QueueInternal *queue, size_t capacity, size_t obj_size) {
   queue->buffer = NULL;
   queue->head = 0;
   queue->tail = 0;
@@ -16,7 +16,7 @@ void init_queue_impl(QueueInternal *queue, size_t capacity, size_t obj_size) {
   ASSERT(queue->buffer != NULL);
 }
 
-void free_queue_impl(QueueInternal *queue) {
+void queue_free_impl(QueueInternal *queue) {
   free(queue->buffer);
 
   queue->buffer = NULL;
@@ -26,15 +26,15 @@ void free_queue_impl(QueueInternal *queue) {
   queue->tail = 0;
 }
 
-bool is_full_queue_impl(QueueInternal *queue) {
+bool queue_is_full_impl(QueueInternal *queue) {
   return queue->capacity == queue->size;
 }
 
-bool is_empty_queue_impl(QueueInternal *queue) { return queue->size == 0; }
+bool queue_is_empty_impl(QueueInternal *queue) { return queue->size == 0; }
 
 static void resize_queue(QueueInternal *queue, size_t obj_size) {
   // no need to resize queue
-  if (!is_full_queue_impl(queue)) {
+  if (!queue_is_full_impl(queue)) {
     return;
   }
 
@@ -72,7 +72,7 @@ static void move_tail_queue(QueueInternal *queue) {
   queue->tail = (queue->tail + 1) % queue->capacity;
 }
 
-void enqueue_queue_impl(QueueInternal *queue, uint8_t const *const val,
+void queue_enqueue_impl(QueueInternal *queue, uint8_t const *const val,
                         size_t obj_size) {
   resize_queue(queue, obj_size);
   queue->size += 1;
@@ -83,8 +83,8 @@ void enqueue_queue_impl(QueueInternal *queue, uint8_t const *const val,
         queue->size);
 }
 
-bool dequeue_queue_impl(QueueInternal *queue, uint8_t *val, size_t obj_size) {
-  if (is_empty_queue_impl(queue)) {
+bool queue_dequeue_impl(QueueInternal *queue, uint8_t *val, size_t obj_size) {
+  if (queue_is_empty_impl(queue)) {
     return false;
   }
   queue->size -= 1;
