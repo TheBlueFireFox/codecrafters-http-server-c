@@ -72,12 +72,10 @@ void vector_clear_impl(VectorInternal *vec);
 // except by the public macros
 //
 // This functions adds an element to the vector
-void vector_push_impl(VectorInternal *vec, uint8_t const *elem,
-                      size_t obj_size);
+void vector_push_impl(VectorInternal *vec, void const *elem, size_t obj_size);
 
 #define vector_push(vector, item)                                              \
-  vector_push_impl((&(vector)->internal),                                      \
-                   (uint8_t const *const)(1 ? &(item) : ((vector)->payload)),  \
+  vector_push_impl((&(vector)->internal), (1 ? &(item) : ((vector)->payload)), \
                    vector_payload_size(vector))
 
 bool vector_get_impl(VectorInternal *vec, size_t idx, uint8_t *val,

@@ -30,19 +30,23 @@ void vector_free_impl(VectorInternal *vec) {
 
 size_t vector_len_impl(VectorInternal *vec) { return vec->len; }
 
-static void realloc_vector(VectorInternal *vec, size_t obj_size) {
-  if (vec->ptr == NULL) {
-    // new list
-    vec->capacity = VECTOR_DEFAULT_CAPACITY;
-  } else if (vec->len == vec->capacity) {
-    // capacity * 2
-    vec->capacity *= 2;
+static void vector_realloc(VectorInternal *vec, size_t obj_size) {
+  size_t capacity = VECTOR_DEFAULT_CAPACITY;
+
+  if (vec->ptr != NULL) {
+    capacity = vec->capacity;
   }
 
-  void *ptr = realloc(vec->ptr, vec->capacity * obj_size);
+  if (vec->ptr != NULL && vec->len == vec->capacity) {
+    // capacity * 2
+    capacity = vec->capacity * 2;
+  }
+
+  void *ptr = realloc(vec->ptr, capacity * obj_size);
 
   if (ptr != NULL) {
     vec->ptr = ptr;
+    vec->capacity = capacity;
   }
 
   ASSERT(vec->ptr != NULL);
@@ -50,10 +54,11 @@ static void realloc_vector(VectorInternal *vec, size_t obj_size) {
 
 void vector_clear_impl(VectorInternal *vec) { vec->len = 0; }
 
-void vector_push_impl(VectorInternal *vec, uint8_t const *const elem,
+void vector_push_impl(VectorInternal *vec, void const *const elem,
                       size_t obj_size) {
+
   if (vec->capacity == vec->len) {
-    realloc_vector(vec, obj_size);
+    vector_realloc(vec, obj_size);
   }
 
   memcpy(vec->ptr + (vec->len * obj_size), elem, obj_size);
