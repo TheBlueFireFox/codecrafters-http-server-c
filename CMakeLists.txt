@@ -41,13 +41,16 @@ find_package(ZLIB REQUIRED)
 add_library(
   http-server-lib STATIC
   src/client.c
+  src/hashmap.c
+  src/hashmap_hasher.c
   src/http.c
   src/queue.c
   src/routes.c
   src/server.c
   src/thread.c
   src/utils.c
-  src/vector.c)
+  src/vector.c
+)
 
 target_include_directories(http-server-lib PUBLIC src)
 
@@ -62,7 +65,11 @@ target_link_libraries(http-server PRIVATE http-server-lib)
 if(LOCAL)
     enable_testing()
 
-    add_executable(http-server-test test/queue.cpp test/vector.cpp)
+    add_executable(http-server-test
+        test/hashmap.cpp
+        test/queue.cpp
+        test/vector.cpp
+    )
     target_link_libraries(http-server-test
         PRIVATE
             http-server-lib
