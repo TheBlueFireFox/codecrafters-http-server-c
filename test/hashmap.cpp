@@ -614,3 +614,36 @@ TEST(TestHashMap, resizePreservesEntries) {
 
   hashmap_free(&map);
 }
+
+TEST(TestHashMap, removeStopsBeforeIdealEntry) {
+  HashMap(int, const char *) map;
+
+  hashmap_init_with_algo(
+      &map,
+      FirstByteAlgo,
+      &hashmap_hash_int,
+      &hashmap_equal_bytes
+  );
+
+  int key1 = 1;
+  int key2 = 17;
+  int key3 = 3;
+
+  const char *value1 = "one";
+  const char *value2 = "seventeen";
+  const char *value3 = "three";
+
+  hashmap_put(&map, key1, value1);
+  hashmap_put(&map, key2, value2);
+  hashmap_put(&map, key3, value3);
+
+  ASSERT_TRUE(hashmap_remove(&map, key2));
+
+  EXPECT_EQ(hashmap_get(&map, key2), nullptr);
+
+  const char **result = hashmap_get(&map, key3);
+  ASSERT_NE(result, nullptr);
+  EXPECT_STREQ(*result, value3);
+
+  hashmap_free(&map);
+}

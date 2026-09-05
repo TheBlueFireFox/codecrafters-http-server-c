@@ -326,8 +326,9 @@ bool hashmap_remove_impl(HashMapInternal *map, const void *key) {
       return true;
     }
 
+    // how far has the next slot traveled
     size_t next_slot_distance =
-        hashmap_probe_distance(map, next_idx, slot.header->hash);
+        hashmap_probe_distance(map, next_idx, next_slot.header->hash);
 
     // next_idx is the ideal position for the next entry
     if (next_slot_distance == 0) {
