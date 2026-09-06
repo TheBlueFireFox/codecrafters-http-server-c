@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "hashmap_hasher.h"
+#include "utils.h"
 
 /* HASHMAP */
 #define HASHMAP_DEFAULT_CAPACITY 16
@@ -92,11 +93,13 @@ typedef struct HashMapInternal HashMapInternal;
 
 #define hashmap_value_size(map) sizeof(*(map)->value_payload)
 
-#define hashmap_key_ptr(map, key)                                              \
-  (const void *)(1 ? &(key) : (map)->key_payload)
+#define hashmap_key_type(map) TYPEOF(*(map)->key_payload)
 
-#define hashmap_value_ptr(map, value)                                          \
-  (const void *)(1 ? &(value) : (map)->value_payload)
+#define hashmap_value_type(map) TYPEOF(*(map)->value_payload)
+
+#define hashmap_key_ptr(map) TYPEOF((map)->key_payload)
+
+#define hashmap_value_ptr(map) TYPEOF((map)->value_payload)
 
 void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
                                  HashMapHashFn hash_fn, HashMapEqFn eq_fn,
@@ -127,19 +130,29 @@ void hashmap_free_impl(HashMapInternal *map);
 bool hashmap_put_impl(HashMapInternal *map, const void *key, const void *value);
 
 #define hashmap_put(map, key, value)                                           \
-  hashmap_put_impl((&(map)->internal), hashmap_key_ptr((map), key),            \
-                   hashmap_value_ptr((map), value))
+  ({                                                                           \
+    hashmap_key_type(map) _hashmap_key = (key);                                \
+    hashmap_value_type(map) _hashmap_value = (value);                          \
+    hashmap_put_impl(&(map)->internal, (const void *)&_hashmap_key,            \
+                     (const void *)&_hashmap_value);                           \
+  })
 
 void *hashmap_get_impl(HashMapInternal *map, const void *key);
 
 #define hashmap_get(map, key)                                                  \
-  ((TYPEOF((map)->value_payload))hashmap_get_impl(                             \
-      &(map)->internal, hashmap_key_ptr((map), key)))
+  ({                                                                           \
+    hashmap_key_type(map) _hashmap_key = (key);                                \
+    (hashmap_value_ptr(map))                                                   \
+        hashmap_get_impl(&(map)->internal, (const void *)&_hashmap_key);       \
+  })
 
 bool hashmap_remove_impl(HashMapInternal *map, const void *key);
 
 #define hashmap_remove(map, key)                                               \
-  hashmap_remove_impl(&(map)->internal, hashmap_key_ptr((map), key))
+  ({                                                                           \
+    hashmap_key_type(map) _hashmap_key = (key);                                \
+    hashmap_remove_impl(&(map)->internal, (const void *)&_hashmap_key);        \
+  })
 
 size_t hashmap_len_impl(const HashMapInternal *map);
 

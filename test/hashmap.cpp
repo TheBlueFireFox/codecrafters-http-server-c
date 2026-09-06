@@ -2,7 +2,6 @@
 
 extern "C" {
 #include "hashmap.h"
-#include "utils.h"
 }
 
 struct CountingContext {
@@ -319,14 +318,13 @@ TEST(TestHashMap, putOverride) {
   hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
 
   int key = 42;
-  const char *value = "hello";
 
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
   size_t idx = hash % map.internal.capacity;
   size_t slot_size =
       sizeof(HashMapSlotHeader) + sizeof(key) + sizeof(const char *);
 
-  bool had_entry = hashmap_put(&map, key, value);
+  bool had_entry = hashmap_put(&map, key, "hello");
   auto len = hashmap_len(&map);
   EXPECT_EQ(len, 1);
   EXPECT_FALSE(had_entry);
