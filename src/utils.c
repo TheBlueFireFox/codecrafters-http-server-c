@@ -3,6 +3,10 @@
 
 #include "utils.h"
 
+size_t align_up(size_t offset, size_t alignment) {
+  return (offset + alignment - 1) & ~(alignment - 1);
+}
+
 bool starts_with(const char *buf, const char *with) {
   for (size_t i = 0;; i += 1) {
     if (with[i] == '\0') {

@@ -18,14 +18,14 @@ set(CMAKE_C_FLAGS " \
 )
 
 if(LOCAL)
-    # set(CMAKE_C_CLANG_TIDY
-    #     clang-tidy
-    #     --use-color
-    # )
-    # set(CMAKE_CXX_CLANG_TIDY
-    #     clang-tidy
-    #     --use-color
-    # )
+    set(CMAKE_C_CLANG_TIDY
+        clang-tidy
+        --use-color
+    )
+    set(CMAKE_CXX_CLANG_TIDY
+        clang-tidy
+        --use-color
+    )
 endif()
 
 # ------------------------------ GTEST ------------------------------

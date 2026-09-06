@@ -2,6 +2,7 @@
 
 extern "C" {
 #include "hashmap.h"
+#include "utils.h"
 }
 
 struct CountingContext {
@@ -42,22 +43,64 @@ Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
   return map->hash_algo.finalize(&ctx.ctx);
 }
 
-HashMapSlot get_slot(HashMapInternal *map, size_t idx) {
-  size_t slot_size =
-      sizeof(HashMapSlotHeader) + map->key_size + map->value_size;
+} // namespace
 
-  uint8_t *slot_location = map->data + (slot_size * idx);
-  HashMapSlotHeader *header = (HashMapSlotHeader *)slot_location;
-  void *key = slot_location + sizeof(HashMapSlotHeader);
-  void *value = slot_location + sizeof(HashMapSlotHeader) + map->key_size;
-  return (HashMapSlot){
-      .header = header,
-      .key = key,
-      .value = value,
+struct AlignmentCase {
+  size_t header_size;
+  size_t header_align;
+  size_t key_size;
+  size_t key_align;
+  size_t value_size;
+  size_t value_align;
+};
+
+class HashMapAlignmentTest : public ::testing::TestWithParam<AlignmentCase> {};
+
+TEST_P(HashMapAlignmentTest, ProducesCorrectlyAlignedSlots) {
+  const auto p = GetParam();
+
+  HashMapSlotQuery query{
+      .header_size = p.header_size,
+      .header_alignment = p.header_align,
+      .key_size = p.key_size,
+      .key_alignment = p.key_align,
+      .value_size = p.value_size,
+      .value_alignment = p.value_align,
   };
+  auto config = hashmap_slot_config(&query);
+
+  constexpr size_t capacity = 32;
+
+  std::vector<uint8_t> memory(capacity * config.slot_size, 0);
+
+  // check that the offsets are correctly aligned
+  for (size_t i = 0; i < capacity; ++i) {
+    auto *slot = memory.data() + (i * config.slot_size);
+
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(slot) % p.header_align, 0);
+
+    EXPECT_EQ(
+        reinterpret_cast<uintptr_t>(slot + config.key_offset) % p.key_align, 0);
+
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(slot + config.value_offset) %
+                  p.value_align,
+              0);
+  }
+
+  size_t slot_align = std::max({p.key_align, p.header_align, p.value_align});
+
+  EXPECT_EQ(config.key_offset % p.key_align, 0);
+  EXPECT_EQ(config.value_offset % p.value_align, 0);
+  EXPECT_EQ(config.slot_size % slot_align, 0);
 }
 
-} // namespace
+INSTANTIATE_TEST_SUITE_P(HashMapSlotLayouts, HashMapAlignmentTest,
+                         ::testing::Values(AlignmentCase{8, 8, 1, 1, 8, 8},
+                                           AlignmentCase{8, 8, 8, 8, 1, 1},
+                                           AlignmentCase{8, 8, 3, 1, 8, 8},
+                                           AlignmentCase{8, 8, 4, 4, 16, 16},
+                                           AlignmentCase{4, 4, 2, 2, 8, 8},
+                                           AlignmentCase{16, 8, 3, 1, 4, 4}));
 
 TEST(TestHashMap, firstByteAlgo) {
   HashMap(int, const char *) map;
@@ -176,6 +219,25 @@ TEST(TestHashMap, initFNV1a) {
   hashmap_free(&map);
 }
 
+TEST(TestHashMap, getSlotByIndex) {
+  HashMap(int, const char *) map;
+
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  const size_t index = 7;
+  HashMapSlot slot = hashmap_get_slot(&map, index);
+  uint8_t *slot_location = map.internal.data + (index * map.internal.slot_size);
+
+  EXPECT_EQ(reinterpret_cast<uint8_t *>(slot.header), slot_location);
+  EXPECT_EQ(static_cast<uint8_t *>(slot.key),
+            slot_location + map.internal.key_offset);
+  EXPECT_EQ(static_cast<uint8_t *>(slot.value),
+            slot_location + map.internal.value_offset);
+  EXPECT_FALSE(slot.header->occupied);
+
+  hashmap_free(&map);
+}
+
 TEST(TestHashMap, free) {
   HashMap(int, const char *) map;
 
@@ -198,8 +260,6 @@ TEST(TestHashMap, putFNV1a) {
 
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
   size_t idx = hash % map.internal.capacity;
-  size_t slot_size =
-      sizeof(HashMapSlotHeader) + sizeof(key) + sizeof(const char *);
 
   bool had_entry = hashmap_put(&map, key, value);
   auto len = hashmap_len(&map);
@@ -210,12 +270,10 @@ TEST(TestHashMap, putFNV1a) {
   // we can just assume alot about the internal structure of the
   // hashmap
 
-  uint8_t *slot_location = map.internal.data + (slot_size * idx);
-  HashMapSlotHeader *header = (HashMapSlotHeader *)slot_location;
-  const int *saved_key = (int *)(slot_location + sizeof(HashMapSlotHeader));
-  const char **saved_value =
-      (const char **)(slot_location + sizeof(HashMapSlotHeader) +
-                      map.internal.key_size);
+  auto slot = hashmap_get_slot(&map, idx);
+  HashMapSlotHeader *header = slot.header;
+  const int *saved_key = (int *)slot.key;
+  const char **saved_value = (const char **)slot.value;
 
   EXPECT_TRUE(header->occupied);
   EXPECT_EQ(header->hash, hash);
@@ -245,7 +303,7 @@ TEST(TestHashMap, putFirstByteAlgo) {
   // we can just assume alot about the internal structure of the
   // hashmap
 
-  HashMapSlot slot = get_slot(&map.internal, key);
+  HashMapSlot slot = hashmap_get_slot(&map, key);
 
   EXPECT_TRUE(slot.header->occupied);
   EXPECT_EQ(slot.header->hash, hash);
@@ -283,13 +341,11 @@ TEST(TestHashMap, putOverride) {
   // as we only have a single value at the given slot,
   // we can just assume alot about the internal structure of the
   // hashmap
+  HashMapSlot slot = hashmap_get_slot(&map, idx);
 
-  uint8_t *slot_location = map.internal.data + (slot_size * idx);
-  HashMapSlotHeader *header = (HashMapSlotHeader *)slot_location;
-  const int *saved_key = (int *)(slot_location + sizeof(HashMapSlotHeader));
-  const char **saved_value =
-      (const char **)(slot_location + sizeof(HashMapSlotHeader) +
-                      map.internal.key_size);
+  HashMapSlotHeader *header = slot.header;
+  const int *saved_key = (int *)slot.key;
+  const char **saved_value = (const char **)slot.value;
 
   EXPECT_TRUE(header->occupied);
   EXPECT_EQ(header->hash, hash);
@@ -318,7 +374,7 @@ TEST(TestHashMap, putMultiple) {
   const char *expected_values[] = {"one", "seventeen", "thirty-three", "two"};
 
   for (size_t i = 0; i < 4; i += 1) {
-    HashMapSlot slot = get_slot(&map.internal, i + 1);
+    HashMapSlot slot = hashmap_get_slot(&map, i + 1);
 
     ASSERT_TRUE(slot.header->occupied);
     EXPECT_EQ(slot.header->hash, expected_keys[i]);
@@ -482,7 +538,7 @@ TEST(TestHashMap, removeMultiple) {
   const char *expected_values[] = {"one", "thirty-three", "two"};
 
   for (size_t i = 0; i < 3; i += 1) {
-    HashMapSlot slot = get_slot(&map.internal, i + 1);
+    HashMapSlot slot = hashmap_get_slot(&map, i + 1);
 
     ASSERT_TRUE(slot.header->occupied);
     EXPECT_EQ(slot.header->hash, expected_keys[i]);
@@ -490,7 +546,7 @@ TEST(TestHashMap, removeMultiple) {
     EXPECT_STREQ(*(const char **)slot.value, expected_values[i]);
   }
 
-  EXPECT_FALSE(get_slot(&map.internal, 4).header->occupied);
+  EXPECT_FALSE(hashmap_get_slot(&map, 4).header->occupied);
   EXPECT_EQ(hashmap_get(&map, removed_key), nullptr);
 
   for (size_t i = 0; i < 4; i += 1) {
@@ -521,9 +577,9 @@ TEST(TestHashMap, removeWrapAroundCluster) {
   }
 
   EXPECT_TRUE(
-      get_slot(&map.internal, map.internal.capacity - 1).header->occupied);
-  EXPECT_TRUE(get_slot(&map.internal, 0).header->occupied);
-  EXPECT_TRUE(get_slot(&map.internal, 1).header->occupied);
+      hashmap_get_slot(&map, map.internal.capacity - 1).header->occupied);
+  EXPECT_TRUE(hashmap_get_slot(&map, 0).header->occupied);
+  EXPECT_TRUE(hashmap_get_slot(&map, 1).header->occupied);
 
   EXPECT_TRUE(hashmap_remove(&map, keys[0]));
   EXPECT_EQ(hashmap_get(&map, keys[0]), nullptr);
@@ -618,12 +674,8 @@ TEST(TestHashMap, resizePreservesEntries) {
 TEST(TestHashMap, removeStopsBeforeIdealEntry) {
   HashMap(int, const char *) map;
 
-  hashmap_init_with_algo(
-      &map,
-      FirstByteAlgo,
-      &hashmap_hash_int,
-      &hashmap_equal_bytes
-  );
+  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_int,
+                         &hashmap_equal_bytes);
 
   int key1 = 1;
   int key2 = 17;

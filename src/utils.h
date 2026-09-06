@@ -82,4 +82,7 @@ bool starts_with(const char *buf, const char *with);
 // - n from which offset the wildcard WILDCARD is found
 ssize_t starts_with_wildcard(const char *buf, const char *with);
 
+
+size_t align_up(size_t offset, size_t alignment); 
+
 #endif // !UTILS
