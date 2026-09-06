@@ -125,8 +125,16 @@ void hashmap_free_impl(HashMapInternal *map) {
   free(map->data);
   map->data = NULL;
 }
+bool hashmap_is_empty_impl(HashMapInternal *map) { return map->len == 0; }
 
 size_t hashmap_len_impl(const HashMapInternal *map) { return map->len; }
+
+size_t hashmap_capacity_impl(HashMapInternal *map) { return map->capacity; }
+
+void hashmap_clear_impl(HashMapInternal *map) {
+  map->len = 0;
+  hashmap_init_data(map);
+}
 
 static size_t hashmap_probe_distance(HashMapInternal *map, size_t idx,
                                      Hash hash) {
@@ -217,13 +225,12 @@ static bool hashmap_put_inner_impl(HashMapInternal *map, Hash hash,
 //   │
 //   └─ swap whenever:
 //        incoming_distance > existing_distance
-void hashmap_resize(HashMapInternal *map) {
+static void hashmap_resize(HashMapInternal *map, size_t new_capacity) {
   // Resize storage
 
   uint8_t *old_data = map->data;
 
   size_t old_capacity = map->capacity;
-  size_t new_capacity = map->capacity * 2;
 
   map->data = malloc(new_capacity * map->slot_size);
   ASSERT(map->data != NULL);
@@ -240,6 +247,38 @@ void hashmap_resize(HashMapInternal *map) {
   free(old_data);
 }
 
+static size_t hashmap_next_power_of_two(size_t value) {
+  if (value <= 1) {
+    return 1;
+  }
+
+  size_t power = 1;
+
+  while (power < value) {
+    power <<= 1;
+  }
+
+  return power;
+}
+
+void hashmap_reserve_impl(HashMapInternal *map, size_t size) {
+  size_t load_factor_amount =
+      (map->capacity * HASHMAP_LOAD_FACTOR_PERCENT) / 100;
+
+  if (size <= load_factor_amount) {
+    return;
+  }
+
+  // calculate the next larger power of 2 that fullfills the size and the load
+  // factor requirements
+
+  size_t required_size = (size * 100) / HASHMAP_LOAD_FACTOR_PERCENT;
+
+  size_t new_capacity = hashmap_next_power_of_two(required_size);
+
+  hashmap_resize(map, new_capacity);
+}
+
 bool hashmap_put_impl(HashMapInternal *map, const void *key,
                       const void *value) {
   Hash hash = hashmap_calculate_hash(map, key);
@@ -254,7 +293,8 @@ bool hashmap_put_impl(HashMapInternal *map, const void *key,
   size_t per = hashmap_load_factor_percent(map);
 
   if (per >= HASHMAP_LOAD_FACTOR_PERCENT) {
-    hashmap_resize(map);
+    size_t new_capacity = map->capacity * 2;
+    hashmap_resize(map, new_capacity);
   }
 
   return false;
@@ -320,6 +360,11 @@ void *hashmap_get_impl(HashMapInternal *map, const void *key) {
 
   HashMapSlot slot = hashmap_get_slot_impl(map, idx);
   return slot.value;
+}
+
+bool hashmap_contains_impl(HashMapInternal *map, const void *key) {
+  size_t idx;
+  return hashmap_lookup(map, key, &idx);
 }
 
 // REMOVE

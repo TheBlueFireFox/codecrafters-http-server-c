@@ -163,6 +163,30 @@ HashMapSlot hashmap_get_slot_impl(HashMapInternal *map, size_t idx);
 #define hashmap_get_slot(map, idx)                                             \
   hashmap_get_slot_impl(&(map)->internal, (idx))
 
+bool hashmap_is_empty_impl(HashMapInternal *map);
+
+#define hashmap_is_empty(map) hashmap_is_empty_impl(&(map)->internal)
+
+size_t hashmap_capacity_impl(HashMapInternal *map);
+
+#define hashmap_capacity(map) hashmap_capacity_impl(&(map)->internal)
+
+void hashmap_clear_impl(HashMapInternal *map);
+
+#define hashmap_clear(map) hashmap_clear_impl(&(map)->internal)
+
+bool hashmap_contains_impl(HashMapInternal *map, const void *key);
+
+#define hashmap_contains(map, key)                                             \
+  ({                                                                           \
+    hashmap_key_type(map) _hashmap_key = (key);                                \
+    hashmap_contains_impl(&(map)->internal, (const void *)&_hashmap_key);      \
+  })
+
+void hashmap_reserve_impl(HashMapInternal *map, size_t size);
+
+#define hashmap_reserve(map, size) hashmap_reserve_impl(&(map)->internal, size)
+
 /* HASH FUNCTIONS */
 
 // cstr

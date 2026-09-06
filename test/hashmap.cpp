@@ -699,6 +699,227 @@ TEST(TestHashMap, removeStopsBeforeIdealEntry) {
   hashmap_free(&map);
 }
 
+TEST(TestHashMap, ContainsReturnsWhetherKeyExists) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  int key = 42;
+  int value = 123;
+
+  EXPECT_FALSE(hashmap_contains(&map, key));
+
+  hashmap_put(&map, key, value);
+
+  EXPECT_TRUE(hashmap_contains(&map, key));
+
+  hashmap_remove(&map, key);
+
+  EXPECT_FALSE(hashmap_contains(&map, key));
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, IsEmptyReflectsMapContents) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  EXPECT_TRUE(hashmap_is_empty(&map));
+
+  int key = 42;
+  int value = 123;
+  hashmap_put(&map, key, value);
+
+  EXPECT_FALSE(hashmap_is_empty(&map));
+
+  hashmap_remove(&map, key);
+
+  EXPECT_TRUE(hashmap_is_empty(&map));
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, CapacityReportsCurrentCapacity) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  const size_t initial_capacity = hashmap_capacity(&map);
+
+  EXPECT_GT(initial_capacity, 0);
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, CapacityGrowsWhenMapResizes) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  const size_t initial_capacity = hashmap_capacity(&map);
+
+  for (size_t i = 0; i <= initial_capacity; ++i) {
+    int key = static_cast<int>(i);
+    int value = static_cast<int>(i * 10);
+
+    hashmap_put(&map, key, value);
+  }
+
+  EXPECT_GT(hashmap_capacity(&map), initial_capacity);
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, ClearRemovesAllEntries) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  for (int i = 0; i < 10; ++i) {
+    int value = i * 10;
+    hashmap_put(&map, i, value);
+  }
+
+  ASSERT_FALSE(hashmap_is_empty(&map));
+
+  hashmap_clear(&map);
+
+  EXPECT_TRUE(hashmap_is_empty(&map));
+  EXPECT_EQ(map.internal.len, 0);
+
+  for (int i = 0; i < 10; ++i) {
+    EXPECT_FALSE(hashmap_contains(&map, i));
+    EXPECT_EQ(hashmap_get(&map, i), nullptr);
+  }
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, ClearLeavesMapReusable) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  hashmap_put(&map, 1, 10);
+  hashmap_put(&map, 2, 20);
+
+  hashmap_clear(&map);
+
+  hashmap_put(&map, 3, 30);
+
+  int *value = hashmap_get(&map, 3);
+
+  ASSERT_NE(value, nullptr);
+  EXPECT_EQ(*value, 30);
+
+  EXPECT_FALSE(hashmap_contains(&map, 1));
+  EXPECT_FALSE(hashmap_contains(&map, 2));
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, ClearPreservesCapacity) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  for (int i = 0; i < 100; ++i) {
+    hashmap_put(&map, i, i);
+  }
+
+  const size_t capacity_before_clear =
+      hashmap_capacity(&map);
+
+  hashmap_clear(&map);
+
+  EXPECT_EQ(
+      hashmap_capacity(&map),
+      capacity_before_clear);
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, ReserveIncreasesCapacity) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  const size_t initial_capacity =
+      hashmap_capacity(&map);
+
+  hashmap_reserve(&map, initial_capacity * 4);
+
+  EXPECT_GT(
+      hashmap_capacity(&map),
+      initial_capacity);
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, ReservePreservesExistingEntries) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  for (int i = 0; i < 10; ++i) {
+    int value = i * 100;
+    hashmap_put(&map, i, value);
+  }
+
+  hashmap_reserve(&map, 1000);
+
+  for (int i = 0; i < 10; ++i) {
+    int *value = hashmap_get(&map, i);
+
+    ASSERT_NE(value, nullptr)
+        << "missing key=" << i;
+
+    EXPECT_EQ(*value, i * 100);
+  }
+
+  EXPECT_EQ(map.internal.len, 10);
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, ReserveDoesNotShrinkCapacity) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  hashmap_reserve(&map, 1000);
+
+  const size_t large_capacity =
+      hashmap_capacity(&map);
+
+  hashmap_reserve(&map, 1);
+
+  EXPECT_EQ(
+      hashmap_capacity(&map),
+      large_capacity);
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, ReservePreventsResizeForRequestedEntries) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  constexpr size_t requested_entries = 100;
+
+  hashmap_reserve(&map, requested_entries);
+
+  const size_t reserved_capacity =
+      hashmap_capacity(&map);
+
+  for (size_t i = 0; i < requested_entries; ++i) {
+    int key = static_cast<int>(i);
+    int value = static_cast<int>(i);
+
+    hashmap_put(&map, key, value);
+
+    EXPECT_EQ(
+        hashmap_capacity(&map),
+        reserved_capacity)
+        << "unexpected resize after inserting "
+        << (i + 1)
+        << " entries";
+  }
+
+  hashmap_free(&map);
+}
+
 // AI generated tests
 namespace {
 constexpr int kOperations = 1000;
