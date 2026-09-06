@@ -82,7 +82,15 @@ bool starts_with(const char *buf, const char *with);
 // - n from which offset the wildcard WILDCARD is found
 ssize_t starts_with_wildcard(const char *buf, const char *with);
 
+size_t align_up(size_t offset, size_t alignment);
 
-size_t align_up(size_t offset, size_t alignment); 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+// C23 extention typeof
+#define TYPEOF(expr) typeof(expr)
+#elif defined(__GNUC__) || defined(__clang__)
+#define TYPEOF(expr) __typeof__(expr)
+#else
+#error "Server Requires C23 typeof or GCC/Clang __typeof__"
+#endif
 
 #endif // !UTILS

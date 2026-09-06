@@ -1,6 +1,7 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
+#include "utils.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -104,13 +105,12 @@ void *vector_search_impl(VectorInternal *vec, size_t obj_size, const void *key,
   vector_search_impl((&(vector)->internal), vector_payload_size(vector),       \
                      (const void *)(key), (comp_fn))
 
-// C23 extention typeof
 #define vector_each_inner(item, array, type, length)                           \
   type ptr = (type)(array), (item) = ptr;                                      \
   ptr < ((type)((array))) + (length);                                          \
   ptr += 1, (item) = ptr
 
 #define vector_each(item, vector)                                              \
-  vector_each_inner(item, (vector)->internal.ptr, typeof(((vector)->payload)), \
+  vector_each_inner(item, (vector)->internal.ptr, TYPEOF(((vector)->payload)), \
                     (vector)->internal.len)
 #endif

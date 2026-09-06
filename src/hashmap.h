@@ -84,9 +84,9 @@ typedef struct HashMapInternal HashMapInternal;
     value_type *value_payload;                                                 \
   }
 
-#define hashmap_alignment_key(map) alignof(typeof(*(map)->key_payload))
+#define hashmap_alignment_key(map) alignof(TYPEOF(*(map)->key_payload))
 
-#define hashmap_alignment_value(map) alignof(typeof(*(map)->value_payload))
+#define hashmap_alignment_value(map) alignof(TYPEOF(*(map)->value_payload))
 
 #define hashmap_key_size(map) sizeof(*(map)->key_payload)
 
@@ -133,7 +133,7 @@ bool hashmap_put_impl(HashMapInternal *map, const void *key, const void *value);
 void *hashmap_get_impl(HashMapInternal *map, const void *key);
 
 #define hashmap_get(map, key)                                                  \
-  ((typeof((map)->value_payload))hashmap_get_impl(                             \
+  ((TYPEOF((map)->value_payload))hashmap_get_impl(                             \
       &(map)->internal, hashmap_key_ptr((map), key)))
 
 bool hashmap_remove_impl(HashMapInternal *map, const void *key);
