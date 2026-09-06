@@ -1,4 +1,5 @@
 #include <gmock/gmock.h>
+#include <random>
 
 extern "C" {
 #include "hashmap.h"
@@ -694,6 +695,231 @@ TEST(TestHashMap, removeStopsBeforeIdealEntry) {
   const char **result = hashmap_get(&map, key3);
   ASSERT_NE(result, nullptr);
   EXPECT_STREQ(*result, value3);
+
+  hashmap_free(&map);
+}
+
+// AI generated tests
+namespace {
+constexpr int kOperations = 1000;
+constexpr int kKeyRange = 256;
+
+using IntIntHashMap = HashMap(int, int);
+
+void assert_map_matches_reference(
+    IntIntHashMap *map, const std::unordered_map<int, int> &reference) {
+
+  EXPECT_EQ(map->internal.len, reference.size());
+
+  for (int key = 0; key < kKeyRange; ++key) {
+    int lookup_key = key;
+
+    int *actual = hashmap_get(map, lookup_key);
+    auto expected = reference.find(key);
+
+    if (expected == reference.end()) {
+      EXPECT_EQ(actual, nullptr) << "key=" << key;
+    } else {
+      ASSERT_NE(actual, nullptr) << "key=" << key;
+      EXPECT_EQ(*actual, expected->second) << "key=" << key;
+    }
+  }
+}
+} // namespace
+
+class HashMapRandomizedTest : public ::testing::TestWithParam<std::uint32_t> {};
+
+INSTANTIATE_TEST_SUITE_P(Seeds, HashMapRandomizedTest,
+                         ::testing::Values(0U, 1U, 42U, 0xC0FFEEU, 0xDEADBEEFU,
+                                           0xFFFFFFFFU));
+
+TEST_P(HashMapRandomizedTest, MatchesStdUnorderedMap) {
+  IntIntHashMap map;
+
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  std::unordered_map<int, int> reference;
+
+  std::mt19937 rng(GetParam());
+
+  std::uniform_int_distribution<int> operation_distribution(0, 2);
+  std::uniform_int_distribution<int> key_distribution(0, kKeyRange - 1);
+  std::uniform_int_distribution<int> value_distribution(-100000, 100000);
+
+  for (int operation_index = 0; operation_index < kOperations;
+       ++operation_index) {
+
+    int operation = operation_distribution(rng);
+    int key = key_distribution(rng);
+
+    switch (operation) {
+    case 0: {
+      int value = value_distribution(rng);
+
+      bool had_entry = hashmap_put(&map, key, value);
+
+      bool reference_had_entry = reference.contains(key);
+
+      EXPECT_EQ(had_entry, reference_had_entry)
+          << "operation=" << operation_index << " key=" << key;
+
+      reference[key] = value;
+      break;
+    }
+
+    case 1: {
+      bool removed = hashmap_remove(&map, key);
+
+      bool reference_removed = reference.erase(key) != 0;
+
+      EXPECT_EQ(removed, reference_removed)
+          << "operation=" << operation_index << " key=" << key;
+
+      break;
+    }
+
+    case 2: {
+      int *actual = hashmap_get(&map, key);
+      auto expected = reference.find(key);
+
+      if (expected == reference.end()) {
+        EXPECT_EQ(actual, nullptr)
+            << "operation=" << operation_index << " key=" << key;
+      } else {
+        ASSERT_NE(actual, nullptr)
+            << "operation=" << operation_index << " key=" << key;
+
+        EXPECT_EQ(*actual, expected->second)
+            << "operation=" << operation_index << " key=" << key;
+      }
+
+      break;
+    }
+
+    default:
+      FAIL();
+    }
+
+    assert_map_matches_reference(&map, reference);
+  }
+
+  hashmap_free(&map);
+}
+
+TEST_P(HashMapRandomizedTest, CollisionHeavyMatchesReference) {
+  HashMap(int, int) map;
+
+  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_int,
+                         &hashmap_equal_bytes);
+
+  std::unordered_map<int, int> reference;
+
+  std::mt19937 rng(GetParam());
+
+  std::uniform_int_distribution<int> operation_distribution(0, 2);
+  std::uniform_int_distribution<int> base_distribution(0, 15);
+  std::uniform_int_distribution<int> collision_distribution(0, 31);
+  std::uniform_int_distribution<int> value_distribution(-10000, 10000);
+
+  for (int i = 0; i < kOperations; ++i) {
+    int operation = operation_distribution(rng);
+
+    /*
+     * Lots of keys share the same low byte / bucket pattern,
+     * depending on how FirstByteAlgo behaves.
+     */
+    int key = base_distribution(rng) + (collision_distribution(rng) * 256);
+
+    switch (operation) {
+    case 0: {
+      int value = value_distribution(rng);
+
+      bool expected_had_entry = reference.contains(key);
+
+      bool actual_had_entry = hashmap_put(&map, key, value);
+
+      EXPECT_EQ(actual_had_entry, expected_had_entry)
+          << "iteration=" << i << " key=" << key;
+
+      reference[key] = value;
+      break;
+    }
+
+    case 1: {
+      bool actual_removed = hashmap_remove(&map, key);
+
+      bool expected_removed = reference.erase(key) != 0;
+
+      EXPECT_EQ(actual_removed, expected_removed)
+          << "iteration=" << i << " key=" << key;
+
+      break;
+    }
+
+    case 2: {
+      int *actual = hashmap_get(&map, key);
+      auto expected = reference.find(key);
+
+      if (expected == reference.end()) {
+        EXPECT_EQ(actual, nullptr);
+      } else {
+        ASSERT_NE(actual, nullptr);
+        EXPECT_EQ(*actual, expected->second);
+      }
+
+      break;
+    }
+    default:
+      FAIL();
+    }
+
+    EXPECT_EQ(map.internal.len, reference.size());
+
+    for (const auto &[expected_key, expected_value] : reference) {
+      int lookup_key = expected_key;
+
+      int *actual = hashmap_get(&map, lookup_key);
+
+      ASSERT_NE(actual, nullptr)
+          << "iteration=" << i << " key=" << expected_key;
+
+      EXPECT_EQ(*actual, expected_value)
+          << "iteration=" << i << " key=" << expected_key;
+    }
+  }
+
+  hashmap_free(&map);
+}
+
+TEST_P(HashMapRandomizedTest, SurvivesRepeatedResizes) {
+  HashMap(int, int) map;
+
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  std::unordered_map<int, int> reference;
+
+  std::mt19937 rng(GetParam());
+  std::uniform_int_distribution<int> value_distribution(-1000000, 1000000);
+
+  for (int key = 0; key < kOperations; ++key) {
+    int value = value_distribution(rng);
+
+    hashmap_put(&map, key, value);
+    reference[key] = value;
+
+    for (const auto &[expected_key, expected_value] : reference) {
+      int lookup_key = expected_key;
+
+      int *actual = hashmap_get(&map, lookup_key);
+
+      ASSERT_NE(actual, nullptr)
+          << "inserted_key=" << key << " missing_key=" << expected_key;
+
+      EXPECT_EQ(*actual, expected_value);
+    }
+
+    EXPECT_EQ(map.internal.len, reference.size());
+  }
 
   hashmap_free(&map);
 }
