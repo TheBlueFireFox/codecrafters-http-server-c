@@ -59,6 +59,7 @@ struct HashMapInternal {
   HashMapAlgorithm hash_algo;
   HashMapHashFn hash_fn;
   HashMapEqFn eq_fn;
+  uint8_t* algo_config; 
   size_t key_size;
   size_t key_offset;
   size_t value_size;

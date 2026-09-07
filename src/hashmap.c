@@ -56,7 +56,7 @@ static Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
   HashMapHashBuilder ctx = {
       .update = map->hash_algo.update,
   };
-  map->hash_algo.init(&ctx.ctx);
+  map->hash_algo.init(&ctx.ctx, map->algo_config);
   map->hash_fn(&ctx, key, map->key_size);
   return map->hash_algo.finalize(&ctx.ctx);
 }
@@ -84,7 +84,6 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   };
 
   HashMapSlotConfigurations config = hashmap_slot_config(&query);
-
   map->len = 0;
   map->capacity = HASHMAP_DEFAULT_CAPACITY;
   map->mask_capacity = HASHMAP_DEFAULT_CAPACITY - 1;
@@ -99,17 +98,19 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   map->hash_algo = algo;
 
   map->data = malloc(HASHMAP_DEFAULT_CAPACITY * map->slot_size);
+  map->algo_config = calloc(128, 1);
 
   ASSERT(map->hash_fn != NULL);
   ASSERT(map->eq_fn != NULL);
   ASSERT(map->data != NULL);
+  map->hash_algo.algo(map->algo_config);
   hashmap_init_data(map);
 }
 
 void hashmap_init_impl(HashMapInternal *map, HashMapHashFn hash_fn,
                        HashMapEqFn eq_fn, size_t key_size, size_t key_alignment,
                        size_t value_size, size_t value_alignment) {
-  hashmap_init_with_algo_impl(map, Fnv1a, hash_fn, eq_fn, key_size,
+  hashmap_init_with_algo_impl(map, SipHash, hash_fn, eq_fn, key_size,
                               key_alignment, value_size, value_alignment);
 }
 
@@ -127,7 +128,10 @@ void hashmap_free_impl(HashMapInternal *map) {
   map->eq_fn = NULL;
 
   free(map->data);
+  free(map->algo_config);
+
   map->data = NULL;
+  map->algo_config = NULL;
 }
 bool hashmap_is_empty_impl(HashMapInternal *map) { return map->len == 0; }
 

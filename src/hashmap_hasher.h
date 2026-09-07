@@ -11,7 +11,8 @@
 typedef uint64_t Hash;
 
 // VTable Alias for hash builder
-typedef void (*HashMapContextInit)(void *ctx);
+typedef void (*HashMapContextInitAlgo)(void *config);
+typedef void (*HashMapContextInit)(void *ctx, const void *config);
 typedef void (*HashMapContextUpdate)(void *ctx, const void *data, size_t size);
 typedef Hash (*HashMapContextFinalize)(void *ctx);
 
@@ -27,6 +28,7 @@ typedef struct HashMapHashBuilder HashMapHashBuilder;
 
 struct HashMapAlgorithm {
   // VTable for hash builder
+  HashMapContextInitAlgo algo;
   HashMapContextInit init;
   HashMapContextUpdate update;
   HashMapContextFinalize finalize;
@@ -41,11 +43,44 @@ struct Fnv1aContext {
 
 typedef struct Fnv1aContext Fnv1aContext;
 
-void hashmap_fnv1a_init(void *ctx);
+void hashmap_fnv1a_algo(void *config);
+void hashmap_fnv1a_init(void *ctx, const void *config);
 void hashmap_fnv1a_update(void *ctx, const void *data, size_t size);
 Hash hashmap_fnv1a_finalize(void *ctx);
 
 extern const HashMapAlgorithm Fnv1a;
+
+// Configuration based on run version
+#define HASHMAP_HASH_SIPHON_MESSAGE 1
+#define HASHMAP_HASH_SIPHON_FINAL 3
+
+struct SiphashContext {
+  uint64_t v0;
+  uint64_t v1;
+  uint64_t v2;
+  uint64_t v3;
+
+  uint64_t total_len;
+
+  uint8_t tail[8];
+  size_t tail_len;
+};
+
+typedef struct SiphashContext SiphashContext;
+
+struct SiphasConfig {
+  uint64_t k0;
+  uint64_t k1;
+};
+
+typedef struct SiphasConfig SiphasConfig;
+
+void hashmap_siphash_init_algo(void *config);
+void hashmap_siphash_init(void *ctx, const void *config);
+void hashmap_siphash_update(void *ctx, const void *data, size_t size);
+Hash hashmap_siphash_finalize(void *ctx);
+
+extern const HashMapAlgorithm SipHash;
 
 /* HASHING HELPER FUNCTIONS */
 #define HASHMAP_INTEGER_TYPES(X)                                               \

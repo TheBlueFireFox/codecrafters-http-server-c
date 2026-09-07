@@ -11,7 +11,11 @@ struct CountingContext {
 };
 
 namespace {
-void hashmap_first_byte_init(void *ctx) {
+
+void hashmap_first_byte_algo(void *config) { (void)config; }
+
+void hashmap_first_byte_init(void *ctx, const void *config) {
+  (void)config;
   CountingContext *ictx = (CountingContext *)ctx;
   ictx->state = 0;
 }
@@ -30,6 +34,7 @@ Hash hashmap_first_byte_finalize(void *ctx) {
 }
 
 const HashMapAlgorithm FirstByteAlgo = {
+    .algo = &hashmap_first_byte_algo,
     .init = &hashmap_first_byte_init,
     .update = &hashmap_first_byte_update,
     .finalize = &hashmap_first_byte_finalize,
@@ -39,7 +44,7 @@ Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
   HashMapHashBuilder ctx = {
       .update = map->hash_algo.update,
   };
-  map->hash_algo.init(&ctx.ctx);
+  map->hash_algo.init(&ctx.ctx, map->algo_config);
   map->hash_fn(&ctx, key, map->key_size);
   return map->hash_algo.finalize(&ctx.ctx);
 }

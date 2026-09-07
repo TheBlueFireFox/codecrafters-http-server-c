@@ -1,14 +1,192 @@
 #include "hashmap_hasher.h"
 #include "utils.h"
+#include <errno.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/random.h>
+#include <time.h>
+
+typedef uint8_t SipHashKey[16];
+
+const HashMapAlgorithm SipHash = {
+    .algo = &hashmap_siphash_init_algo,
+    .init = &hashmap_siphash_init,
+    .update = &hashmap_siphash_update,
+    .finalize = &hashmap_siphash_finalize,
+};
+
+static int hashmap_siphash_key_generate(SipHashKey key) {
+  unsigned char *p = (unsigned char *)key;
+  size_t remaining = sizeof(SipHashKey);
+
+  while (remaining > 0) {
+    ssize_t n = getrandom(p, remaining, 0);
+
+    if (n < 0) {
+      if (errno == EINTR)
+        continue;
+
+      return -1;
+    }
+
+    p += n;
+    remaining -= (size_t)n;
+  }
+
+  return 0;
+}
+
+static uint64_t load_u64_le(const uint8_t *bytes) {
+  return ((uint64_t)bytes[0]) | ((uint64_t)bytes[1] << 8) |
+         ((uint64_t)bytes[2] << 16) | ((uint64_t)bytes[3] << 24) |
+         ((uint64_t)bytes[4] << 32) | ((uint64_t)bytes[5] << 40) |
+         ((uint64_t)bytes[6] << 48) | ((uint64_t)bytes[7] << 56);
+}
+
+void hashmap_siphash_init_algo(void *config) {
+  SiphasConfig *key = config;
+  SipHashKey key_raw;
+  int result = hashmap_siphash_key_generate(key_raw);
+  (void)result;
+  ASSERT(result == 0);
+  key->k0 = load_u64_le(key_raw);
+  key->k1 = load_u64_le(key_raw + 8);
+}
+
+void hashmap_siphash_init(void *ctx, const void *config) {
+  SiphashContext *hash = ctx;
+  const SiphasConfig *key = config;
+
+  hash->v0 = UINT64_C(0x736f6d6570736575) ^ key->k0;
+
+  hash->v1 = UINT64_C(0x646f72616e646f6d) ^ key->k1;
+
+  hash->v2 = UINT64_C(0x6c7967656e657261) ^ key->k0;
+
+  hash->v3 = UINT64_C(0x7465646279746573) ^ key->k1;
+
+  hash->total_len = 0;
+  hash->tail_len = 0;
+}
+
+static uint64_t rotl64(uint64_t value, unsigned int bits) {
+  return (value << bits) | (value >> (64 - bits));
+}
+
+static void sip_round(SiphashContext *hash) {
+  hash->v0 += hash->v1;
+  hash->v1 = rotl64(hash->v1, 13);
+  hash->v1 ^= hash->v0;
+  hash->v0 = rotl64(hash->v0, 32);
+
+  hash->v2 += hash->v3;
+  hash->v3 = rotl64(hash->v3, 16);
+  hash->v3 ^= hash->v2;
+
+  hash->v0 += hash->v3;
+  hash->v3 = rotl64(hash->v3, 21);
+  hash->v3 ^= hash->v0;
+
+  hash->v2 += hash->v1;
+  hash->v1 = rotl64(hash->v1, 17);
+  hash->v1 ^= hash->v2;
+  hash->v2 = rotl64(hash->v2, 32);
+}
+
+static void hashmap_hash_compress(SiphashContext *hash, uint64_t message) {
+  hash->v3 ^= message;
+
+  for (size_t i = 0; i < HASHMAP_HASH_SIPHON_MESSAGE; i += 1) {
+    sip_round(hash);
+  }
+
+  hash->v0 ^= message;
+}
+
+void hashmap_siphash_update(void *ctx, const void *data, size_t size) {
+
+  SiphashContext *hash = ctx;
+  const uint8_t *bytes = data;
+
+  hash->total_len += size;
+
+  /*
+   * Finish an existing partial block first.
+   */
+  if (hash->tail_len != 0) {
+    size_t needed = 8 - hash->tail_len;
+
+    if (needed > size)
+      needed = size;
+
+    memcpy(hash->tail + hash->tail_len, bytes, needed);
+
+    hash->tail_len += needed;
+    bytes += needed;
+    size -= needed;
+
+    if (hash->tail_len == 8) {
+      hashmap_hash_compress(hash, load_u64_le(hash->tail));
+
+      hash->tail_len = 0;
+    }
+  }
+
+  /*
+   * Process complete 8-byte blocks.
+   */
+  while (size >= 8) {
+    hashmap_hash_compress(hash, load_u64_le(bytes));
+
+    bytes += 8;
+    size -= 8;
+  }
+
+  /*
+   * Save whatever is left.
+   */
+  if (size != 0) {
+    memcpy(hash->tail, bytes, size);
+    hash->tail_len = size;
+  }
+}
+
+Hash hashmap_siphash_finalize(void *ctx) {
+  SiphashContext *hash = ctx;
+  uint64_t final_block = (hash->total_len & UINT64_C(0xff)) << 56;
+
+  for (size_t i = 0; i < hash->tail_len; ++i) {
+    final_block |= (uint64_t)hash->tail[i] << (i * 8);
+  }
+
+  hash->v3 ^= final_block;
+
+  for (size_t i = 0; i < HASHMAP_HASH_SIPHON_MESSAGE; i += 1) {
+    sip_round(hash);
+  }
+
+  hash->v0 ^= final_block;
+
+  hash->v2 ^= UINT64_C(0xff);
+
+  for (size_t i = 0; i < HASHMAP_HASH_SIPHON_FINAL; i += 1) {
+    sip_round(hash);
+  }
+
+  return hash->v0 ^ hash->v1 ^ hash->v2 ^ hash->v3;
+}
 
 const HashMapAlgorithm Fnv1a = {
+    .algo = &hashmap_fnv1a_algo,
     .init = &hashmap_fnv1a_init,
     .update = &hashmap_fnv1a_update,
     .finalize = &hashmap_fnv1a_finalize,
 };
 
-void hashmap_fnv1a_init(void *ctx) {
+void hashmap_fnv1a_algo(void *config) { (void)config; }
+
+void hashmap_fnv1a_init(void *ctx, const void *config) {
+  (void)config;
   Fnv1aContext *ctx_internal = ctx;
   ctx_internal->state = 0xcbf29ce484222325;
 }
