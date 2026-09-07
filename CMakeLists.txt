@@ -32,6 +32,7 @@ endif()
 
 if(LOCAL)
     find_package(GTest CONFIG REQUIRED)
+    find_package(benchmark CONFIG REQUIRED)
 endif()
 
 find_package(ZLIB REQUIRED)
@@ -60,7 +61,7 @@ target_compile_definitions(http-server-lib PUBLIC ZLIB_CONST=1)
 add_executable(http-server src/main.c)
 target_link_libraries(http-server PRIVATE http-server-lib)
 
-# ------------------------------ TESTS ------------------------------
+# ----------------------------- TESTS / BENCHMARKS -----------------------------
 
 if(LOCAL)
     enable_testing()
@@ -70,6 +71,7 @@ if(LOCAL)
         test/queue.cpp
         test/vector.cpp
     )
+
     target_link_libraries(http-server-test
         PRIVATE
             http-server-lib
@@ -78,4 +80,16 @@ if(LOCAL)
 
     include(GoogleTest)
     gtest_discover_tests(http-server-test)
+
+    # -------------------------- BENCHMARKS --------------------------
+
+    add_executable(http-server-benchmark
+        benchmark/hashmap_bench.cpp
+    )
+
+    target_link_libraries(http-server-benchmark
+        PRIVATE
+            http-server-lib
+            benchmark::benchmark_main
+    )
 endif()
