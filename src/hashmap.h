@@ -72,6 +72,7 @@ struct HashMapInternal {
   size_t capacity;
   size_t mask_capacity;
   size_t grow_at;
+  size_t load_factor_percent;
   HashMapAlgorithm hash_algo;
   HashMapHashFn hash_fn;
   HashMapEqFn eq_fn;
@@ -209,11 +210,19 @@ void hashmap_reserve_impl(HashMapInternal *map, size_t size);
 
 #define hashmap_reserve(map, size) hashmap_reserve_impl(&(map)->internal, size)
 
+void hashmap_set_load_factor_percent_impl(HashMapInternal *map,
+                                          size_t load_factor_percent);
+
+#define hashmap_set_load_factor_percent(map, load_factor_percent)             \
+  hashmap_set_load_factor_percent_impl(&(map)->internal, load_factor_percent)
+
 #ifdef HASHMAP_ENABLE_STATS
 HashMapStats hashmap_stats_impl(const HashMapInternal *map);
-void hashmap_stats_reset_impl(HashMapInternal *map);
 
 #define hashmap_stats(map) hashmap_stats_impl(&(map)->internal)
+
+void hashmap_stats_reset_impl(HashMapInternal *map);
+
 #define hashmap_stats_reset(map) hashmap_stats_reset_impl(&(map)->internal)
 #endif
 

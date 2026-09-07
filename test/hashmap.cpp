@@ -911,6 +911,24 @@ TEST(TestHashMap, ReservePreventsResizeForRequestedEntries) {
   hashmap_free(&map);
 }
 
+TEST(TestHashMap, LoadFactorCanChangeBeforeNextInsert) {
+  HashMap(int, int) map;
+  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+
+  const size_t initial_capacity = hashmap_capacity(&map);
+  hashmap_set_load_factor_percent(&map, 25);
+
+  EXPECT_EQ(hashmap_capacity(&map), initial_capacity);
+
+  for (int key = 0; key < 5; ++key) {
+    EXPECT_FALSE(hashmap_put(&map, key, key));
+  }
+
+  EXPECT_EQ(hashmap_capacity(&map), initial_capacity * 2);
+
+  hashmap_free(&map);
+}
+
 // AI generated tests
 namespace {
 constexpr int kOperations = 1000;

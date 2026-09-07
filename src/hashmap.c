@@ -96,7 +96,8 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   map->len = 0;
   map->capacity = HASHMAP_DEFAULT_CAPACITY;
   map->mask_capacity = HASHMAP_DEFAULT_CAPACITY - 1;
-  map->grow_at = (map->capacity * HASHMAP_LOAD_FACTOR_PERCENT) / 100;
+  map->load_factor_percent = HASHMAP_LOAD_FACTOR_PERCENT;
+  map->grow_at = (map->capacity * map->load_factor_percent) / 100;
   map->hash_fn = hash_fn;
   map->eq_fn = eq_fn;
   map->key_size = key_size;
@@ -130,6 +131,7 @@ void hashmap_free_impl(HashMapInternal *map) {
   map->len = 0;
   map->capacity = 0;
   map->mask_capacity = 0;
+  map->load_factor_percent = 0;
   map->grow_at = 0;
   map->key_size = 0;
   map->key_offset = 0;
@@ -145,6 +147,15 @@ void hashmap_free_impl(HashMapInternal *map) {
   map->data = NULL;
   map->algo_config = NULL;
 }
+
+void hashmap_set_load_factor_percent_impl(HashMapInternal *map,
+                                          size_t load_factor_percent) {
+  ASSERT(load_factor_percent > 0 && load_factor_percent < 100);
+
+  map->load_factor_percent = load_factor_percent;
+  map->grow_at = (map->capacity * map->load_factor_percent) / 100;
+}
+
 bool hashmap_is_empty_impl(HashMapInternal *map) { return map->len == 0; }
 
 size_t hashmap_len_impl(const HashMapInternal *map) { return map->len; }
@@ -261,7 +272,7 @@ static void hashmap_resize(HashMapInternal *map, size_t new_capacity) {
 
   map->capacity = new_capacity;
   map->mask_capacity = new_capacity - 1;
-  map->grow_at = (map->capacity * HASHMAP_LOAD_FACTOR_PERCENT) / 100;
+  map->grow_at = (map->capacity * map->load_factor_percent) / 100;
   hashmap_init_data(map);
 
   for (size_t i = 0; i < old_capacity; i += 1) {
@@ -289,7 +300,7 @@ static size_t hashmap_next_power_of_two(size_t value) {
 
 void hashmap_reserve_impl(HashMapInternal *map, size_t size) {
   size_t load_factor_amount =
-      (map->capacity * HASHMAP_LOAD_FACTOR_PERCENT) / 100;
+  (map->capacity * map->load_factor_percent) / 100;
 
   if (size <= load_factor_amount) {
     return;
@@ -298,7 +309,7 @@ void hashmap_reserve_impl(HashMapInternal *map, size_t size) {
   // calculate the next larger power of 2 that fullfills the size and the load
   // factor requirements
 
-  size_t required_size = (size * 100) / HASHMAP_LOAD_FACTOR_PERCENT;
+  size_t required_size = (size * 100) / map->load_factor_percent;
 
   size_t new_capacity = hashmap_next_power_of_two(required_size);
 
