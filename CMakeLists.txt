@@ -79,6 +79,10 @@ if(LOCAL)
             http-server-lib
             GTest::gtest_main
     )
+    target_compile_options(http-server-test PRIVATE
+        -g
+        -fno-omit-frame-pointer
+    )
 
     include(GoogleTest)
     gtest_discover_tests(http-server-test)
@@ -93,5 +97,9 @@ if(LOCAL)
         PRIVATE
             http-server-lib
             benchmark::benchmark_main
+    )
+    target_compile_options(http-server-benchmark PRIVATE
+        -g
+        -fno-omit-frame-pointer
     )
 endif()
