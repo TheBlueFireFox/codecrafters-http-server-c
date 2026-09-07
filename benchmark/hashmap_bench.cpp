@@ -114,7 +114,7 @@ using StdDefaultMap = std::unordered_map<uint64_t, uint64_t>;
  */
 
 static void init_map(U64Map *map) {
-  hashmap_init(map, &hashmap_hash_u64, &hashmap_equal_bytes);
+  hashmap_init_with_algo(map, Fnv1a, &hashmap_hash_u64, &hashmap_equal_bytes);
 }
 
 /*

@@ -199,7 +199,7 @@ TEST(TestHashMap, FNV1a) {
 TEST(TestHashMap, initFNV1a) {
   HashMap(int, const char *) map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_init_with_algo(&map, Fnv1a, &hashmap_hash_int, &hashmap_equal_bytes);
 
   EXPECT_EQ(map.internal.key_size, sizeof(int));
   EXPECT_EQ(map.internal.value_size, sizeof(const char *));
@@ -259,7 +259,7 @@ TEST(TestHashMap, free) {
 TEST(TestHashMap, putFNV1a) {
   HashMap(int, const char *) map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_init_with_algo(&map, Fnv1a, &hashmap_hash_int, &hashmap_equal_bytes);
 
   int key = 42;
   const char *value = "hello";
