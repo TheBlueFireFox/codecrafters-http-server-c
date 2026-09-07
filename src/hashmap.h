@@ -36,9 +36,10 @@ typedef struct HashMapSlotConfigurations HashMapSlotConfigurations;
 
 HashMapSlotConfigurations hashmap_slot_config(struct HashMapSlotQuery *query);
 
+#define HASHMAP_HASH_EMPTY 0
+
 struct HashMapSlotHeader {
   Hash hash;
-  bool occupied;
 };
 
 typedef struct HashMapSlotHeader HashMapSlotHeader;
@@ -76,7 +77,7 @@ struct HashMapInternal {
   HashMapAlgorithm hash_algo;
   HashMapHashFn hash_fn;
   HashMapEqFn eq_fn;
-  uint8_t* algo_config; 
+  uint8_t *algo_config;
   size_t key_size;
   size_t key_offset;
   size_t value_size;
@@ -213,7 +214,7 @@ void hashmap_reserve_impl(HashMapInternal *map, size_t size);
 void hashmap_set_load_factor_percent_impl(HashMapInternal *map,
                                           size_t load_factor_percent);
 
-#define hashmap_set_load_factor_percent(map, load_factor_percent)             \
+#define hashmap_set_load_factor_percent(map, load_factor_percent)              \
   hashmap_set_load_factor_percent_impl(&(map)->internal, load_factor_percent)
 
 #ifdef HASHMAP_ENABLE_STATS

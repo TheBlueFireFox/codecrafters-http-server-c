@@ -67,15 +67,11 @@ static Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
   };
   map->hash_algo.init(&ctx.ctx, map->algo_config);
   map->hash_fn(&ctx, key, map->key_size);
-  return map->hash_algo.finalize(&ctx.ctx);
-}
-
-static void hashmap_init_data(HashMapInternal *map) {
-  // set OCCUPIED to false
-  for (size_t i = 0; i < map->capacity; i += 1) {
-    HashMapSlot slot = hashmap_get_slot_impl(map, i);
-    slot.header->occupied = false;
+  Hash hash = map->hash_algo.finalize(&ctx.ctx);
+  if (hash == HASHMAP_HASH_EMPTY) {
+    hash = 1;
   }
+  return hash;
 }
 
 void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
@@ -110,14 +106,13 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   map->stats = (HashMapStats){0};
 #endif
 
-  map->data = malloc(HASHMAP_DEFAULT_CAPACITY * map->slot_size);
+  map->data = calloc(HASHMAP_DEFAULT_CAPACITY, map->slot_size);
   map->algo_config = calloc(128, 1);
 
   ASSERT(map->hash_fn != NULL);
   ASSERT(map->eq_fn != NULL);
   ASSERT(map->data != NULL);
   map->hash_algo.algo(map->algo_config);
-  hashmap_init_data(map);
 }
 
 void hashmap_init_impl(HashMapInternal *map, HashMapHashFn hash_fn,
@@ -164,7 +159,7 @@ size_t hashmap_capacity_impl(HashMapInternal *map) { return map->capacity; }
 
 void hashmap_clear_impl(HashMapInternal *map) {
   map->len = 0;
-  hashmap_init_data(map);
+  memset(map->data, 0, map->capacity * map->slot_size);
 }
 
 static uint64_t hashmap_mod_capacity(HashMapInternal *map, uint64_t value) {
@@ -199,8 +194,7 @@ static bool hashmap_put_inner_impl(HashMapInternal *map, Hash hash,
     HASHMAP_STAT_INC(map, insert_probes);
     HashMapSlot slot = hashmap_get_slot_impl(map, idx);
     // Empty slot found
-    if (!slot.header->occupied) {
-      slot.header->occupied = true;
+    if (slot.header->hash == HASHMAP_HASH_EMPTY) {
       slot.header->hash = current_hash;
       memcpy(slot.key, current_key, map->key_size);
       memcpy(slot.value, current_value, map->value_size);
@@ -267,17 +261,16 @@ static void hashmap_resize(HashMapInternal *map, size_t new_capacity) {
 
   size_t old_capacity = map->capacity;
 
-  map->data = malloc(new_capacity * map->slot_size);
+  map->data = calloc(new_capacity, map->slot_size);
   ASSERT(map->data != NULL);
 
   map->capacity = new_capacity;
   map->mask_capacity = new_capacity - 1;
   map->grow_at = (map->capacity * map->load_factor_percent) / 100;
-  hashmap_init_data(map);
 
   for (size_t i = 0; i < old_capacity; i += 1) {
     HashMapSlot slot = hashmap_get_slot_inner(map, i, old_data);
-    if (slot.header->occupied) {
+    if (slot.header->hash != HASHMAP_HASH_EMPTY) {
       hashmap_put_inner_impl(map, slot.header->hash, slot.key, slot.value);
     }
   }
@@ -299,8 +292,7 @@ static size_t hashmap_next_power_of_two(size_t value) {
 }
 
 void hashmap_reserve_impl(HashMapInternal *map, size_t size) {
-  size_t load_factor_amount =
-  (map->capacity * map->load_factor_percent) / 100;
+  size_t load_factor_amount = (map->capacity * map->load_factor_percent) / 100;
 
   if (size <= load_factor_amount) {
     return;
@@ -362,7 +354,7 @@ static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
     HashMapSlot slot = hashmap_get_slot_impl(map, *idx);
 
     // Empty slot found
-    if (!slot.header->occupied) {
+    if (slot.header->hash == HASHMAP_HASH_EMPTY) {
       return NULL;
     }
 
@@ -432,16 +424,16 @@ bool hashmap_remove_impl(HashMapInternal *map, const void *key) {
     HASHMAP_STAT_INC(map, remove_probes);
     HashMapSlot slot = hashmap_get_slot_impl(map, idx);
     // end of cluster
-    if (!slot.header->occupied) {
+    if (slot.header->hash == HASHMAP_HASH_EMPTY) {
       return true;
     }
-    slot.header->occupied = false;
+    slot.header->hash = HASHMAP_HASH_EMPTY;
 
     size_t next_idx = hashmap_mod_capacity(map, idx + 1);
 
     HashMapSlot next_slot = hashmap_get_slot_impl(map, next_idx);
 
-    if (!next_slot.header->occupied) {
+    if (next_slot.header == HASHMAP_HASH_EMPTY) {
       return true;
     }
 
@@ -455,7 +447,6 @@ bool hashmap_remove_impl(HashMapInternal *map, const void *key) {
     }
 
     // slide back the next idx
-    slot.header->occupied = next_slot.header->occupied;
     slot.header->hash = next_slot.header->hash;
     memcpy(slot.key, next_slot.key, map->key_size);
     memcpy(slot.value, next_slot.value, map->value_size);
