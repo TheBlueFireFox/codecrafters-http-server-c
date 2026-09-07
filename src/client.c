@@ -16,8 +16,8 @@
 #include "client.h"
 #include "utils.h"
 
-size_t load_request(int client_fd, uint8_t **in_buf, size_t *buffer_size,
-                    HttpRequest *req) {
+static size_t load_request(int client_fd, uint8_t **in_buf, size_t *buffer_size,
+                           HttpRequest *req) {
   size_t read_size = 0;
 
   while (1) {
@@ -52,8 +52,9 @@ size_t load_request(int client_fd, uint8_t **in_buf, size_t *buffer_size,
   return read_size;
 }
 
-bool handle_client_request(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
-                           size_t *buffer_size, AppState *state) {
+static bool handle_client_request(int client_fd, uint8_t **in_buf,
+                                  uint8_t *out_buf, size_t *buffer_size,
+                                  AppState *state) {
   HttpRequest req;
 
   size_t size = load_request(client_fd, in_buf, buffer_size, &req);
@@ -72,8 +73,8 @@ bool handle_client_request(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
   return active;
 }
 
-const suseconds_t INTERVAL = 500;
-const size_t MAX_TIMEOUT_US = INTERVAL * 10;
+static const suseconds_t INTERVAL = 500;
+static const size_t MAX_TIMEOUT_US = INTERVAL * 10;
 
 enum LoopInnerState {
   Contiinue,
@@ -81,9 +82,9 @@ enum LoopInnerState {
   Client,
 };
 
-enum LoopInnerState handle_client_loop_inner(struct pollfd *fds,
-                                             size_t fds_count,
-                                             size_t *iter_count) {
+static enum LoopInnerState handle_client_loop_inner(struct pollfd *fds,
+                                                    size_t fds_count,
+                                                    size_t *iter_count) {
   *iter_count -= INTERVAL;
 
   int ret = poll(fds, fds_count, (int)INTERVAL);
@@ -105,9 +106,9 @@ enum LoopInnerState handle_client_loop_inner(struct pollfd *fds,
   return Client;
 }
 
-void handle_client_loop(int client_fd, uint8_t **in_buf, uint8_t *out_buf,
-                        size_t org_buffer_size, AppState *state,
-                        atomic_bool *server_running) {
+static void handle_client_loop(int client_fd, uint8_t **in_buf,
+                               uint8_t *out_buf, size_t org_buffer_size,
+                               AppState *state, atomic_bool *server_running) {
   struct pollfd fds[1] = {{
       .fd = client_fd,
       .events = POLLIN,

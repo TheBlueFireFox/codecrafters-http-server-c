@@ -99,7 +99,7 @@ void push_header_headers(HttpHeaders *headers, const char *const key,
 //
 // // Response body (empty)
 
-size_t write_endline(uint8_t *const buf) { STRVAL(buf, ENDLINE); }
+static size_t write_endline(uint8_t *const buf) { STRVAL(buf, ENDLINE); }
 
 size_t write_version(uint8_t *const buf, HttpVersion status) {
   switch (status) { MAP(HTTP1_1, "HTTP/1.1", buf) }
@@ -130,7 +130,7 @@ size_t write_headers(uint8_t *const buf, HttpHeaders *headers) {
   return size;
 }
 
-size_t write_body(uint8_t *const buf, HttpBody *body) {
+static size_t write_body(uint8_t *const buf, HttpBody *body) {
   memcpy(buf, body->body, body->len);
   return body->len;
 }
@@ -148,7 +148,7 @@ size_t write_response(uint8_t *const buf, HttpResponse *resp) {
   return offset;
 }
 
-size_t parse_method(const uint8_t *buf, HttpMethod *meth) {
+static size_t parse_method(const uint8_t *buf, HttpMethod *meth) {
   const char *const methods_str[] = {"GET", "POST"};
   HttpMethod methods_enum[] = {GET, POST};
 
@@ -164,7 +164,7 @@ size_t parse_method(const uint8_t *buf, HttpMethod *meth) {
   exit(1);
 }
 
-size_t parse_version(const uint8_t *buf, HttpVersion *version) {
+static size_t parse_version(const uint8_t *buf, HttpVersion *version) {
   const char *const VERSION = "HTTP/1.1";
 
   if (!starts_with((const char *)buf, VERSION)) {
@@ -181,7 +181,7 @@ size_t parse_version(const uint8_t *buf, HttpVersion *version) {
 // Host: localhost:4221\r\n     // Header that specifies the server's host and
 // User-Agent: curl/7.64.1\r\n  // Header that describes the client's user
 // Accept: */*\r\n              // Header that specifies which media types
-size_t parse_headers(uint8_t *buf, HttpHeaders *headers) {
+static size_t parse_headers(uint8_t *buf, HttpHeaders *headers) {
   size_t offset = 0;
   // end of headers
   while (!(*(buf + offset) == '\r' && *(buf + offset + 1) == '\n')) {
@@ -214,7 +214,7 @@ size_t parse_headers(uint8_t *buf, HttpHeaders *headers) {
   return offset;
 }
 
-size_t convert_to_int(const char *content_len) {
+static size_t convert_to_int(const char *content_len) {
   if (content_len == NULL) {
     return 0;
   }
@@ -230,8 +230,8 @@ size_t convert_to_int(const char *content_len) {
   return res;
 }
 
-size_t parse_request_line(uint8_t *buf, HttpMethod *method,
-                          HttpVersion *version, const char **url) {
+static size_t parse_request_line(uint8_t *buf, HttpMethod *method,
+                                 HttpVersion *version, const char **url) {
   // GET                          // HTTP method
   // /index.html                  // Request target
   // HTTP/1.1                     // HTTP version

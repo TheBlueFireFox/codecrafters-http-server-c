@@ -21,8 +21,8 @@ typedef size_t (*fnPtr)(uint8_t *const buf, HttpRequest *req, HttpParams params,
 
 // SEE: stackoverflow
 // https://stackoverflow.com/questions/49622938/gzip-compression-using-zlib-into-buffer
-size_t compress_to_gzip(const uint8_t *const data, size_t input_size,
-                        uint8_t **output) {
+static size_t compress_to_gzip(const uint8_t *const data, size_t input_size,
+                               uint8_t **output) {
   z_stream stream = {0};
   deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1F, 8,
                Z_DEFAULT_STRATEGY);
@@ -42,7 +42,7 @@ size_t compress_to_gzip(const uint8_t *const data, size_t input_size,
   return len;
 }
 
-size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
+static size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
   char content_length[BUFFER_SIZE];
   HttpBody org_body = resp->body;
   uint8_t *new_buf_body = NULL;
@@ -73,7 +73,8 @@ size_t write_response_helper(uint8_t *const buf, HttpResponse *resp) {
   return res;
 }
 
-size_t handle_bad_req(uint8_t *const buf, HttpRequest *req) {
+/*
+static size_t handle_bad_req(uint8_t *const buf, HttpRequest *req) {
 
   HttpResponse resp =
       init_response(BAD_REQ, req->headers.encoding, req->headers.connection);
@@ -84,8 +85,9 @@ size_t handle_bad_req(uint8_t *const buf, HttpRequest *req) {
 
   return res;
 }
+*/
 
-size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
+static size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
 
   HttpResponse resp =
       init_response(NOT_FOUND, req->headers.encoding, req->headers.connection);
@@ -97,8 +99,8 @@ size_t handle_not_found(uint8_t *const buf, HttpRequest *req) {
   return res;
 }
 
-size_t handle_root(uint8_t *const buf, HttpRequest *req, HttpParams params,
-                   AppState *state) {
+static size_t handle_root(uint8_t *const buf, HttpRequest *req,
+                          HttpParams params, AppState *state) {
   (void)params;
   (void)state;
 
@@ -112,8 +114,8 @@ size_t handle_root(uint8_t *const buf, HttpRequest *req, HttpParams params,
   return res;
 }
 
-size_t handle_echo(uint8_t *const buf, HttpRequest *req, HttpParams params,
-                   AppState *state) {
+static size_t handle_echo(uint8_t *const buf, HttpRequest *req,
+                          HttpParams params, AppState *state) {
   (void)state;
 
   HttpResponse resp =
@@ -136,8 +138,8 @@ size_t handle_echo(uint8_t *const buf, HttpRequest *req, HttpParams params,
   return res;
 }
 
-size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
-                         HttpParams params, AppState *state) {
+static size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
+                                HttpParams params, AppState *state) {
 
   (void)params;
   (void)state;
@@ -165,8 +167,8 @@ size_t handle_user_agent(uint8_t *const buf, HttpRequest *req,
   return res;
 }
 
-size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
-                       AppState *state) {
+static size_t handle_file_get(uint8_t *const buf, HttpRequest *req,
+                              HttpParams params, AppState *state) {
   ASSERT(state->directory != NULL);
 
   char filepath[100];
@@ -196,7 +198,7 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
   ASSERT(fd != -1);
 
   size_t size_read = read(fd, body_buf, size);
-
+  (void)size_read;
   ASSERT(size_read == size);
 
   HttpResponse resp =
@@ -218,8 +220,8 @@ size_t handle_file_get(uint8_t *const buf, HttpRequest *req, HttpParams params,
   return res;
 }
 
-size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
-                        AppState *state) {
+static size_t handle_file_post(uint8_t *const buf, HttpRequest *req,
+                               HttpParams params, AppState *state) {
 
   ASSERT(state->directory != NULL);
 
@@ -251,8 +253,8 @@ size_t handle_file_post(uint8_t *const buf, HttpRequest *req, HttpParams params,
   return res;
 }
 
-size_t handle_file(uint8_t *const buf, HttpRequest *req, HttpParams params,
-                   AppState *state) {
+static size_t handle_file(uint8_t *const buf, HttpRequest *req,
+                          HttpParams params, AppState *state) {
   switch (req->method) {
   case GET:
     return handle_file_get(buf, req, params, state);

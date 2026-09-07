@@ -4,16 +4,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#ifdef NDEBUG
-#define ASSERT(x)                                                              \
-  do {                                                                         \
-    (void)sizeof(x);                                                           \
-  } while (0)
-#else
-#include <assert.h>
-#define ASSERT(x) assert(x)
-#endif
-
 enum Level {
   DEBUG,
   INFO,
@@ -91,6 +81,17 @@ size_t align_up(size_t offset, size_t alignment);
 #define TYPEOF(expr) __typeof__(expr)
 #else
 #error "Server Requires C23 typeof or GCC/Clang __typeof__"
+#endif
+
+#ifdef NDEBUG
+#define ASSERT(x)                                                              \
+  do {                                                                         \
+    /* NOLINTNEXTLINE(bugprone-sizeof-expression,cert-arr39-c) */              \
+    (void)sizeof(x);                                                           \
+  } while (0)
+#else
+#include <assert.h>
+#define ASSERT(x) assert(x)
 #endif
 
 #endif // !UTILS

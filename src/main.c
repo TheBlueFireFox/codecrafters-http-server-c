@@ -4,9 +4,9 @@
 
 #include "server.h"
 
-atomic_bool is_running = false;
+static atomic_bool is_running = false;
 
-void sig_int_handler(int signum) {
+static void sig_int_handler(int signum) {
   (void)signum;
   atomic_store(&is_running, false);
 }

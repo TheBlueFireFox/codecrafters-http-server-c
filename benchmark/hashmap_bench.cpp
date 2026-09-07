@@ -1,6 +1,5 @@
 #include <benchmark/benchmark.h>
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -11,10 +10,12 @@ extern "C" {
 #include "hashmap.h"
 }
 
+namespace {
 /*
  * The C hashmap type we're benchmarking.
  */
 typedef HashMap(uint64_t, uint64_t) U64Map;
+} // namespace
 
 /*
  * --------------------------------------------------------------------------
@@ -34,38 +35,35 @@ typedef HashMap(uint64_t, uint64_t) U64Map;
  * No RNG work happens inside the timed benchmark.
  */
 
-static uint64_t mix64(uint64_t x)
-{
-    x += 0x9e3779b97f4a7c15ULL;
+static uint64_t mix64(uint64_t x) {
+  x += 0x9e3779b97f4a7c15ULL;
 
-    x = (x ^ (x >> 30U)) * 0xbf58476d1ce4e5b9ULL;
-    x = (x ^ (x >> 27U)) * 0x94d049bb133111ebULL;
+  x = (x ^ (x >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+  x = (x ^ (x >> 27U)) * 0x94d049bb133111ebULL;
 
-    return x ^ (x >> 31U);
+  return x ^ (x >> 31U);
 }
 
-static std::vector<uint64_t> make_present_keys(size_t count)
-{
-    std::vector<uint64_t> keys;
-    keys.reserve(count);
+static std::vector<uint64_t> make_present_keys(size_t count) {
+  std::vector<uint64_t> keys;
+  keys.reserve(count);
 
-    for (size_t i = 0; i < count; ++i) {
-        keys.push_back(mix64(static_cast<uint64_t>(i) * 2));
-    }
+  for (size_t i = 0; i < count; ++i) {
+    keys.push_back(mix64(static_cast<uint64_t>(i) * 2));
+  }
 
-    return keys;
+  return keys;
 }
 
-static std::vector<uint64_t> make_missing_keys(size_t count)
-{
-    std::vector<uint64_t> keys;
-    keys.reserve(count);
+static std::vector<uint64_t> make_missing_keys(size_t count) {
+  std::vector<uint64_t> keys;
+  keys.reserve(count);
 
-    for (size_t i = 0; i < count; ++i) {
-        keys.push_back(mix64(static_cast<uint64_t>(i) * 2 + 1));
-    }
+  for (size_t i = 0; i < count; ++i) {
+    keys.push_back(mix64((static_cast<uint64_t>(i) * 2) + 1));
+  }
 
-    return keys;
+  return keys;
 }
 
 /*
@@ -86,31 +84,28 @@ static std::vector<uint64_t> make_missing_keys(size_t count)
  * separately from unordered_map's default std::hash<uint64_t>.
  */
 
+namespace {
 struct Fnv1aU64 {
-    size_t operator()(uint64_t value) const noexcept
-    {
-        constexpr uint64_t offset_basis = 0xcbf29ce484222325ULL;
-        constexpr uint64_t prime = 0x00000100000001b3ULL;
+  size_t operator()(uint64_t value) const noexcept {
+    constexpr uint64_t offset_basis = 0xcbf29ce484222325ULL;
+    constexpr uint64_t prime = 0x00000100000001b3ULL;
 
-        uint64_t hash = offset_basis;
+    uint64_t hash = offset_basis;
 
-        const auto *bytes =
-            reinterpret_cast<const unsigned char *>(&value);
+    const auto *bytes = reinterpret_cast<const unsigned char *>(&value);
 
-        for (size_t i = 0; i < sizeof(value); ++i) {
-            hash ^= bytes[i];
-            hash *= prime;
-        }
-
-        return static_cast<size_t>(hash);
+    for (size_t i = 0; i < sizeof(value); ++i) {
+      hash ^= bytes[i];
+      hash *= prime;
     }
+
+    return static_cast<size_t>(hash);
+  }
 };
+} // namespace
+using StdFnvMap = std::unordered_map<uint64_t, uint64_t, Fnv1aU64>;
 
-using StdFnvMap =
-    std::unordered_map<uint64_t, uint64_t, Fnv1aU64>;
-
-using StdDefaultMap =
-    std::unordered_map<uint64_t, uint64_t>;
+using StdDefaultMap = std::unordered_map<uint64_t, uint64_t>;
 
 /*
  * --------------------------------------------------------------------------
@@ -118,13 +113,8 @@ using StdDefaultMap =
  * --------------------------------------------------------------------------
  */
 
-static void init_map(U64Map *map)
-{
-    hashmap_init(
-        map,
-        &hashmap_hash_u64,
-        &hashmap_equal_bytes
-    );
+static void init_map(U64Map *map) {
+  hashmap_init(map, &hashmap_hash_u64, &hashmap_equal_bytes);
 }
 
 /*
@@ -134,12 +124,10 @@ static void init_map(U64Map *map)
  * Since your growth threshold is 80%, reserving exactly N buckets would
  * still grow before N insertions.
  */
-static size_t capacity_for_elements(size_t elements)
-{
-    return
-        (elements * 100 + HASHMAP_LOAD_FACTOR_PERCENT - 1) /
-            HASHMAP_LOAD_FACTOR_PERCENT
-        + 1;
+static size_t capacity_for_elements(size_t elements) {
+  return (((elements * 100) + HASHMAP_LOAD_FACTOR_PERCENT - 1) /
+          HASHMAP_LOAD_FACTOR_PERCENT) +
+         1;
 }
 
 /*
@@ -149,23 +137,18 @@ static size_t capacity_for_elements(size_t elements)
  *   ~L2/L3-ish
  *   substantially larger
  */
-static void MapSizes(benchmark::internal::Benchmark *benchmark)
-{
-    benchmark->Arg(1U << 10U);  // 1,024
-    benchmark->Arg(1U << 14U);  // 16,384
-    benchmark->Arg(1U << 18U);  // 262,144
+
+static void MapSizes(benchmark::Benchmark *b) {
+  b->Arg(1U << 10U);
+  b->Arg(1U << 14U);
+  b->Arg(1U << 18U);
 }
 
-static void LoadFactors(benchmark::internal::Benchmark *benchmark)
-{
-    /*
-     * Your map resizes at 80%, so 79% is the interesting upper bound
-     * without deliberately bypassing the public API.
-     */
-    benchmark->Arg(25);
-    benchmark->Arg(50);
-    benchmark->Arg(70);
-    benchmark->Arg(79);
+static void LoadFactors(benchmark::Benchmark *b) {
+  b->Arg(25);
+  b->Arg(50);
+  b->Arg(70);
+  b->Arg(79);
 }
 
 /*
@@ -182,39 +165,34 @@ static void LoadFactors(benchmark::internal::Benchmark *benchmark)
  *   Robin Hood insertion
  */
 
-static void BM_HashMap_InsertReserved(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
-    const auto keys = make_present_keys(count);
+static void BM_HashMap_InsertReserved(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto keys = make_present_keys(count);
 
-    for (auto _ : state) {
-        state.PauseTiming();
+  for (auto _ : state) {
+    (void)_;
+    state.PauseTiming();
 
-        U64Map map{};
-        init_map(&map);
+    U64Map map{};
+    init_map(&map);
 
-        hashmap_reserve(
-            &map,
-            capacity_for_elements(count)
-        );
+    hashmap_reserve(&map, capacity_for_elements(count));
 
-        state.ResumeTiming();
+    state.ResumeTiming();
 
-        for (const auto key : keys) {
-            hashmap_put(&map, key, key);
-        }
-
-        benchmark::ClobberMemory();
-
-        state.PauseTiming();
-        hashmap_free(&map);
-        state.ResumeTiming();
+    for (const auto key : keys) {
+      hashmap_put(&map, key, key);
     }
 
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
+    benchmark::ClobberMemory();
+
+    state.PauseTiming();
+    hashmap_free(&map);
+    state.ResumeTiming();
+  }
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 }
 
 /*
@@ -226,34 +204,32 @@ static void BM_HashMap_InsertReserved(benchmark::State &state)
  * remains inside the timed region.
  */
 
-static void BM_HashMap_InsertGrowing(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
-    const auto keys = make_present_keys(count);
+static void BM_HashMap_InsertGrowing(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto keys = make_present_keys(count);
 
-    for (auto _ : state) {
-        state.PauseTiming();
+  for (auto _ : state) {
+    (void)_;
+    state.PauseTiming();
 
-        U64Map map{};
-        init_map(&map);
+    U64Map map{};
+    init_map(&map);
 
-        state.ResumeTiming();
+    state.ResumeTiming();
 
-        for (const auto key : keys) {
-            hashmap_put(&map, key, key);
-        }
-
-        benchmark::ClobberMemory();
-
-        state.PauseTiming();
-        hashmap_free(&map);
-        state.ResumeTiming();
+    for (const auto key : keys) {
+      hashmap_put(&map, key, key);
     }
 
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
+    benchmark::ClobberMemory();
+
+    state.PauseTiming();
+    hashmap_free(&map);
+    state.ResumeTiming();
+  }
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 }
 
 /*
@@ -262,41 +238,36 @@ static void BM_HashMap_InsertGrowing(benchmark::State &state)
  * ==========================================================================
  */
 
-static void BM_HashMap_LookupHit(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
-    const auto keys = make_present_keys(count);
+static void BM_HashMap_LookupHit(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto keys = make_present_keys(count);
 
-    U64Map map{};
-    init_map(&map);
+  U64Map map{};
+  init_map(&map);
 
-    hashmap_reserve(
-        &map,
-        capacity_for_elements(count)
-    );
+  hashmap_reserve(&map, capacity_for_elements(count));
 
+  for (const auto key : keys) {
+    hashmap_put(&map, key, key);
+  }
+
+  for (auto _ : state) {
+    (void)_;
     for (const auto key : keys) {
-        hashmap_put(&map, key, key);
+      auto *value = hashmap_get(&map, key);
+
+      benchmark::DoNotOptimize(value);
+
+      if (value != nullptr) {
+        benchmark::DoNotOptimize(*value);
+      }
     }
+  }
 
-    for (auto _ : state) {
-        for (const auto key : keys) {
-            auto *value = hashmap_get(&map, key);
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 
-            benchmark::DoNotOptimize(value);
-
-            if (value != nullptr) {
-                benchmark::DoNotOptimize(*value);
-            }
-        }
-    }
-
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
-
-    hashmap_free(&map);
+  hashmap_free(&map);
 }
 
 /*
@@ -305,39 +276,34 @@ static void BM_HashMap_LookupHit(benchmark::State &state)
  * ==========================================================================
  */
 
-static void BM_HashMap_LookupMiss(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
+static void BM_HashMap_LookupMiss(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
 
-    const auto present = make_present_keys(count);
-    const auto missing = make_missing_keys(count);
+  const auto present = make_present_keys(count);
+  const auto missing = make_missing_keys(count);
 
-    U64Map map{};
-    init_map(&map);
+  U64Map map{};
+  init_map(&map);
 
-    hashmap_reserve(
-        &map,
-        capacity_for_elements(count)
-    );
+  hashmap_reserve(&map, capacity_for_elements(count));
 
-    for (const auto key : present) {
-        hashmap_put(&map, key, key);
+  for (const auto key : present) {
+    hashmap_put(&map, key, key);
+  }
+
+  for (auto _ : state) {
+    (void)_;
+    for (const auto key : missing) {
+      auto *value = hashmap_get(&map, key);
+
+      benchmark::DoNotOptimize(value);
     }
+  }
 
-    for (auto _ : state) {
-        for (const auto key : missing) {
-            auto *value = hashmap_get(&map, key);
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 
-            benchmark::DoNotOptimize(value);
-        }
-    }
-
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
-
-    hashmap_free(&map);
+  hashmap_free(&map);
 }
 
 /*
@@ -349,42 +315,37 @@ static void BM_HashMap_LookupMiss(benchmark::State &state)
  * Reconstruction is outside the timed region.
  */
 
-static void BM_HashMap_Erase(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
-    const auto keys = make_present_keys(count);
+static void BM_HashMap_Erase(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto keys = make_present_keys(count);
 
-    for (auto _ : state) {
-        state.PauseTiming();
+  for (auto _ : state) {
+    (void)_;
+    state.PauseTiming();
 
-        U64Map map{};
-        init_map(&map);
+    U64Map map{};
+    init_map(&map);
 
-        hashmap_reserve(
-            &map,
-            capacity_for_elements(count)
-        );
+    hashmap_reserve(&map, capacity_for_elements(count));
 
-        for (const auto key : keys) {
-            hashmap_put(&map, key, key);
-        }
-
-        state.ResumeTiming();
-
-        for (const auto key : keys) {
-            const bool removed = hashmap_remove(&map, key);
-            benchmark::DoNotOptimize(removed);
-        }
-
-        state.PauseTiming();
-        hashmap_free(&map);
-        state.ResumeTiming();
+    for (const auto key : keys) {
+      hashmap_put(&map, key, key);
     }
 
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
+    state.ResumeTiming();
+
+    for (const auto key : keys) {
+      bool removed = hashmap_remove(&map, key);
+      benchmark::DoNotOptimize(removed);
+    }
+
+    state.PauseTiming();
+    hashmap_free(&map);
+    state.ResumeTiming();
+  }
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 }
 
 /*
@@ -399,158 +360,145 @@ static void BM_HashMap_Erase(benchmark::State &state)
  */
 
 template <typename Map>
-static void BM_Std_InsertReserved(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
-    const auto keys = make_present_keys(count);
+static void BM_Std_InsertReserved(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto keys = make_present_keys(count);
 
-    for (auto _ : state) {
-        state.PauseTiming();
+  for (auto _ : state) {
+    (void)_;
+    state.PauseTiming();
 
-        Map map;
-        map.reserve(count);
+    Map map;
+    map.reserve(count);
 
-        state.ResumeTiming();
+    state.ResumeTiming();
 
-        for (const auto key : keys) {
-            map.emplace(key, key);
-        }
-
-        benchmark::ClobberMemory();
-
-        state.PauseTiming();
-        map.clear();
-        state.ResumeTiming();
+    for (const auto key : keys) {
+      map.emplace(key, key);
     }
 
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
+    benchmark::ClobberMemory();
+
+    state.PauseTiming();
+    map.clear();
+    state.ResumeTiming();
+  }
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 }
 
 template <typename Map>
-static void BM_Std_InsertGrowing(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
-    const auto keys = make_present_keys(count);
+static void BM_Std_InsertGrowing(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto keys = make_present_keys(count);
 
-    for (auto _ : state) {
-        state.PauseTiming();
+  for (auto _ : state) {
+    (void)_;
+    state.PauseTiming();
 
-        Map map;
+    Map map;
 
-        state.ResumeTiming();
+    state.ResumeTiming();
 
-        for (const auto key : keys) {
-            map.emplace(key, key);
-        }
-
-        benchmark::ClobberMemory();
-
-        state.PauseTiming();
-        map.clear();
-        state.ResumeTiming();
+    for (const auto key : keys) {
+      map.emplace(key, key);
     }
 
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
+    benchmark::ClobberMemory();
+
+    state.PauseTiming();
+    map.clear();
+    state.ResumeTiming();
+  }
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 }
 
-template <typename Map>
-static void BM_Std_LookupHit(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
-    const auto keys = make_present_keys(count);
+template <typename Map> static void BM_Std_LookupHit(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto keys = make_present_keys(count);
+
+  Map map;
+  map.reserve(count);
+
+  for (const auto key : keys) {
+    map.emplace(key, key);
+  }
+
+  for (auto _ : state) {
+    (void)_;
+    for (const auto key : keys) {
+      auto it = map.find(key);
+
+      benchmark::DoNotOptimize(it);
+
+      if (it != map.end()) {
+        benchmark::DoNotOptimize(it->second);
+      }
+    }
+  }
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
+}
+
+template <typename Map> static void BM_Std_LookupMiss(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+
+  const auto present = make_present_keys(count);
+  const auto missing = make_missing_keys(count);
+
+  Map map;
+  map.reserve(count);
+
+  for (const auto key : present) {
+    map.emplace(key, key);
+  }
+
+  for (auto _ : state) {
+    (void)_;
+    for (const auto key : missing) {
+      auto it = map.find(key);
+
+      benchmark::DoNotOptimize(it);
+    }
+  }
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
+}
+
+template <typename Map> static void BM_Std_Erase(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto keys = make_present_keys(count);
+
+  for (auto _ : state) {
+    (void)_;
+    state.PauseTiming();
 
     Map map;
     map.reserve(count);
 
     for (const auto key : keys) {
-        map.emplace(key, key);
+      map.emplace(key, key);
     }
 
-    for (auto _ : state) {
-        for (const auto key : keys) {
-            const auto it = map.find(key);
+    state.ResumeTiming();
 
-            benchmark::DoNotOptimize(it);
-
-            if (it != map.end()) {
-                benchmark::DoNotOptimize(it->second);
-            }
-        }
+    for (const auto key : keys) {
+      auto removed = map.erase(key);
+      benchmark::DoNotOptimize(removed);
     }
 
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
-}
+    state.PauseTiming();
+    map.clear();
+    state.ResumeTiming();
+  }
 
-template <typename Map>
-static void BM_Std_LookupMiss(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
-
-    const auto present = make_present_keys(count);
-    const auto missing = make_missing_keys(count);
-
-    Map map;
-    map.reserve(count);
-
-    for (const auto key : present) {
-        map.emplace(key, key);
-    }
-
-    for (auto _ : state) {
-        for (const auto key : missing) {
-            const auto it = map.find(key);
-
-            benchmark::DoNotOptimize(it);
-        }
-    }
-
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
-}
-
-template <typename Map>
-static void BM_Std_Erase(benchmark::State &state)
-{
-    const auto count = static_cast<size_t>(state.range(0));
-    const auto keys = make_present_keys(count);
-
-    for (auto _ : state) {
-        state.PauseTiming();
-
-        Map map;
-        map.reserve(count);
-
-        for (const auto key : keys) {
-            map.emplace(key, key);
-        }
-
-        state.ResumeTiming();
-
-        for (const auto key : keys) {
-            const auto removed = map.erase(key);
-            benchmark::DoNotOptimize(removed);
-        }
-
-        state.PauseTiming();
-        map.clear();
-        state.ResumeTiming();
-    }
-
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 }
 
 /*
@@ -565,93 +513,83 @@ static void BM_Std_Erase(benchmark::State &state)
  * physical layouts.
  */
 
-static void BM_HashMap_LoadFactor_Hit(benchmark::State &state)
-{
-    const auto requested_load =
-        static_cast<size_t>(state.range(0));
+static void BM_HashMap_LoadFactor_Hit(benchmark::State &state) {
+  const auto requested_load = static_cast<size_t>(state.range(0));
 
-    constexpr size_t requested_capacity = 1U << 16U;
+  constexpr size_t requested_capacity = 1U << 16U;
 
-    U64Map map{};
-    init_map(&map);
+  U64Map map{};
+  init_map(&map);
 
-    hashmap_reserve(&map, requested_capacity);
+  hashmap_reserve(&map, requested_capacity);
 
-    const size_t capacity = hashmap_capacity(&map);
-    const size_t count =
-        capacity * requested_load / 100;
+  const size_t capacity = hashmap_capacity(&map);
+  const size_t count = capacity * requested_load / 100;
 
-    const auto keys = make_present_keys(count);
+  const auto keys = make_present_keys(count);
 
+  for (const auto key : keys) {
+    hashmap_put(&map, key, key);
+  }
+
+  for (auto _ : state) {
+    (void)_;
     for (const auto key : keys) {
-        hashmap_put(&map, key, key);
+      auto *value = hashmap_get(&map, key);
+
+      benchmark::DoNotOptimize(value);
+
+      if (value != nullptr) {
+        benchmark::DoNotOptimize(*value);
+      }
     }
+  }
 
-    for (auto _ : state) {
-        for (const auto key : keys) {
-            auto *value = hashmap_get(&map, key);
+  state.counters["load"] =
+      static_cast<double>(count) / static_cast<double>(capacity);
 
-            benchmark::DoNotOptimize(value);
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 
-            if (value != nullptr) {
-                benchmark::DoNotOptimize(*value);
-            }
-        }
-    }
-
-    state.counters["load"] =
-        static_cast<double>(count) /
-        static_cast<double>(capacity);
-
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
-
-    hashmap_free(&map);
+  hashmap_free(&map);
 }
 
-static void BM_HashMap_LoadFactor_Miss(benchmark::State &state)
-{
-    const auto requested_load =
-        static_cast<size_t>(state.range(0));
+static void BM_HashMap_LoadFactor_Miss(benchmark::State &state) {
+  const auto requested_load = static_cast<size_t>(state.range(0));
 
-    constexpr size_t requested_capacity = 1U << 16U;
+  constexpr size_t requested_capacity = 1U << 16U;
 
-    U64Map map{};
-    init_map(&map);
+  U64Map map{};
+  init_map(&map);
 
-    hashmap_reserve(&map, requested_capacity);
+  hashmap_reserve(&map, requested_capacity);
 
-    const size_t capacity = hashmap_capacity(&map);
-    const size_t count =
-        capacity * requested_load / 100;
+  const size_t capacity = hashmap_capacity(&map);
+  const size_t count = capacity * requested_load / 100;
 
-    const auto present = make_present_keys(count);
-    const auto missing = make_missing_keys(count);
+  const auto present = make_present_keys(count);
+  const auto missing = make_missing_keys(count);
 
-    for (const auto key : present) {
-        hashmap_put(&map, key, key);
+  for (const auto key : present) {
+    hashmap_put(&map, key, key);
+  }
+
+  for (auto _ : state) {
+    (void)_;
+    for (const auto key : missing) {
+      auto *value = hashmap_get(&map, key);
+
+      benchmark::DoNotOptimize(value);
     }
+  }
 
-    for (auto _ : state) {
-        for (const auto key : missing) {
-            auto *value = hashmap_get(&map, key);
+  state.counters["load"] =
+      static_cast<double>(count) / static_cast<double>(capacity);
 
-            benchmark::DoNotOptimize(value);
-        }
-    }
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
 
-    state.counters["load"] =
-        static_cast<double>(count) /
-        static_cast<double>(capacity);
-
-    state.SetItemsProcessed(
-        static_cast<int64_t>(state.iterations()) *
-        static_cast<int64_t>(count)
-    );
-
-    hashmap_free(&map);
+  hashmap_free(&map);
 }
 
 /*

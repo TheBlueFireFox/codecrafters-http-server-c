@@ -5,6 +5,7 @@ extern "C" {
 #include "hashmap.h"
 }
 
+namespace {
 struct CountingContext {
   uint64_t state;
 };
@@ -821,14 +822,11 @@ TEST(TestHashMap, ClearPreservesCapacity) {
     hashmap_put(&map, i, i);
   }
 
-  const size_t capacity_before_clear =
-      hashmap_capacity(&map);
+  const size_t capacity_before_clear = hashmap_capacity(&map);
 
   hashmap_clear(&map);
 
-  EXPECT_EQ(
-      hashmap_capacity(&map),
-      capacity_before_clear);
+  EXPECT_EQ(hashmap_capacity(&map), capacity_before_clear);
 
   hashmap_free(&map);
 }
@@ -837,14 +835,11 @@ TEST(TestHashMap, ReserveIncreasesCapacity) {
   HashMap(int, int) map;
   hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
 
-  const size_t initial_capacity =
-      hashmap_capacity(&map);
+  const size_t initial_capacity = hashmap_capacity(&map);
 
   hashmap_reserve(&map, initial_capacity * 4);
 
-  EXPECT_GT(
-      hashmap_capacity(&map),
-      initial_capacity);
+  EXPECT_GT(hashmap_capacity(&map), initial_capacity);
 
   hashmap_free(&map);
 }
@@ -863,8 +858,7 @@ TEST(TestHashMap, ReservePreservesExistingEntries) {
   for (int i = 0; i < 10; ++i) {
     int *value = hashmap_get(&map, i);
 
-    ASSERT_NE(value, nullptr)
-        << "missing key=" << i;
+    ASSERT_NE(value, nullptr) << "missing key=" << i;
 
     EXPECT_EQ(*value, i * 100);
   }
@@ -880,14 +874,11 @@ TEST(TestHashMap, ReserveDoesNotShrinkCapacity) {
 
   hashmap_reserve(&map, 1000);
 
-  const size_t large_capacity =
-      hashmap_capacity(&map);
+  const size_t large_capacity = hashmap_capacity(&map);
 
   hashmap_reserve(&map, 1);
 
-  EXPECT_EQ(
-      hashmap_capacity(&map),
-      large_capacity);
+  EXPECT_EQ(hashmap_capacity(&map), large_capacity);
 
   hashmap_free(&map);
 }
@@ -900,8 +891,7 @@ TEST(TestHashMap, ReservePreventsResizeForRequestedEntries) {
 
   hashmap_reserve(&map, requested_entries);
 
-  const size_t reserved_capacity =
-      hashmap_capacity(&map);
+  const size_t reserved_capacity = hashmap_capacity(&map);
 
   for (size_t i = 0; i < requested_entries; ++i) {
     int key = static_cast<int>(i);
@@ -909,12 +899,8 @@ TEST(TestHashMap, ReservePreventsResizeForRequestedEntries) {
 
     hashmap_put(&map, key, value);
 
-    EXPECT_EQ(
-        hashmap_capacity(&map),
-        reserved_capacity)
-        << "unexpected resize after inserting "
-        << (i + 1)
-        << " entries";
+    EXPECT_EQ(hashmap_capacity(&map), reserved_capacity)
+        << "unexpected resize after inserting " << (i + 1) << " entries";
   }
 
   hashmap_free(&map);
@@ -1144,3 +1130,4 @@ TEST_P(HashMapRandomizedTest, SurvivesRepeatedResizes) {
 
   hashmap_free(&map);
 }
+} // namespace

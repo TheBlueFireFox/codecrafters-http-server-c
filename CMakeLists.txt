@@ -21,10 +21,12 @@ if(LOCAL)
     set(CMAKE_C_CLANG_TIDY
         clang-tidy
         --use-color
+        --fix
     )
     set(CMAKE_CXX_CLANG_TIDY
         clang-tidy
         --use-color
+        --fix
     )
 endif()
 

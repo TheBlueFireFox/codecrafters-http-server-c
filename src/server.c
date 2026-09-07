@@ -9,6 +9,7 @@
 
 #include "client.h"
 #include "routes.h"
+#include "server.h"
 #include "thread.h"
 #include "utils.h"
 
@@ -18,14 +19,14 @@ struct ThreadFunctionHelper {
   AppState *state;
 };
 
-void thread_function(void *args) {
+static void thread_function(void *args) {
   struct ThreadFunctionHelper *state = args;
   handle_client(state->client_fd, state->state, state->server_running);
   free(state);
 }
 
-void send_task(int client_fd, AppState *state, atomic_bool *server_running,
-               ThreadPool *pool) {
+static void send_task(int client_fd, AppState *state,
+                      atomic_bool *server_running, ThreadPool *pool) {
 
   struct ThreadFunctionHelper *tf = malloc(sizeof(struct ThreadFunctionHelper));
 
@@ -41,7 +42,7 @@ void send_task(int client_fd, AppState *state, atomic_bool *server_running,
   add_threaded_task(pool, tf);
 }
 
-const char *PORT = "4221";
+static const char *PORT = "4221";
 
 static int server_loop(int fd, AppState *state, ThreadPool *pool,
                        atomic_bool *is_running) {
