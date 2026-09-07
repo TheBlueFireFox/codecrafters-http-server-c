@@ -17,7 +17,10 @@ typedef Hash (*HashMapContextFinalize)(void *ctx);
 
 struct HashMapHashBuilder {
   HashMapContextUpdate update;
-  uint8_t ctx[HASHMAP_HASH_CONTEXT_MAX_SIZE];
+  union {
+    max_align_t align;
+    uint8_t ctx_data[HASHMAP_HASH_CONTEXT_MAX_SIZE];
+  } ctx;
 };
 
 typedef struct HashMapHashBuilder HashMapHashBuilder;

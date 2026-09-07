@@ -31,14 +31,14 @@ Hash hashmap_fnv1a_finalize(void *ctx) {
   void hashmap_hash_##suffix(HashMapHashBuilder *builder, const void *key,     \
                              size_t key_size) {                                \
     ASSERT(key_size == sizeof(type));                                          \
-    builder->update(builder->ctx, key, sizeof(type));                          \
+    builder->update(builder->ctx.ctx_data, key, sizeof(type));                 \
   }
 
 HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
 
 void hashmap_hash_blob(HashMapHashBuilder *builder, const void *key,
                        size_t key_size) {
-  builder->update(builder->ctx, key, key_size);
+  builder->update(builder->ctx.ctx_data, key, key_size);
   hashmap_hash_u64(builder, &key_size, sizeof(key_size));
 }
 
@@ -48,6 +48,6 @@ void hashmap_hash_string(HashMapHashBuilder *builder, const void *key,
   (void)key_size;
   const char *string = *(const char *const *)key;
   size_t size = strlen(string);
-  builder->update(builder->ctx, string, size);
+  builder->update(builder->ctx.ctx_data, string, size);
   hashmap_hash_u64(builder, &size, sizeof(size));
 }
