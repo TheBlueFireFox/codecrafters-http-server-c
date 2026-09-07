@@ -54,6 +54,8 @@ typedef struct HashMapSlot HashMapSlot;
 struct HashMapInternal {
   size_t len;
   size_t capacity;
+  size_t mask_capacity;
+  size_t grow_at;
   HashMapAlgorithm hash_algo;
   HashMapHashFn hash_fn;
   HashMapEqFn eq_fn;

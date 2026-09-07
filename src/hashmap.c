@@ -87,6 +87,8 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
 
   map->len = 0;
   map->capacity = HASHMAP_DEFAULT_CAPACITY;
+  map->mask_capacity = HASHMAP_DEFAULT_CAPACITY - 1;
+  map->grow_at = (map->capacity * HASHMAP_LOAD_FACTOR_PERCENT) / 100;
   map->hash_fn = hash_fn;
   map->eq_fn = eq_fn;
   map->key_size = key_size;
@@ -114,6 +116,8 @@ void hashmap_init_impl(HashMapInternal *map, HashMapHashFn hash_fn,
 void hashmap_free_impl(HashMapInternal *map) {
   map->len = 0;
   map->capacity = 0;
+  map->mask_capacity = 0;
+  map->grow_at = 0;
   map->key_size = 0;
   map->key_offset = 0;
   map->value_size = 0;
@@ -136,20 +140,20 @@ void hashmap_clear_impl(HashMapInternal *map) {
   hashmap_init_data(map);
 }
 
-static size_t hashmap_probe_distance(HashMapInternal *map, size_t idx,
-                                     Hash hash) {
-  size_t ideal = hash % map->capacity;
-
-  return (idx + map->capacity - ideal) % map->capacity;
+static uint64_t hashmap_mod_capacity(HashMapInternal *map, uint64_t value) {
+  return value & map->mask_capacity;
 }
 
-static size_t hashmap_load_factor_percent(HashMapInternal *map) {
-  return 100 * map->len / map->capacity;
+static size_t hashmap_probe_distance(HashMapInternal *map, size_t idx,
+                                     Hash hash) {
+  size_t ideal = hashmap_mod_capacity(map, hash);
+
+  return hashmap_mod_capacity(map, idx + map->capacity - ideal);
 }
 
 static bool hashmap_put_inner_impl(HashMapInternal *map, Hash hash,
                                    const void *key, const void *value) {
-  size_t idx = hash % map->capacity;
+  size_t idx = hashmap_mod_capacity(map, hash);
   size_t distance = 0;
 
   // Round robbin based insert
@@ -210,7 +214,7 @@ static bool hashmap_put_inner_impl(HashMapInternal *map, Hash hash,
       distance = slot_distance;
     }
 
-    idx = (idx + 1) % map->capacity;
+    idx = hashmap_mod_capacity(map, idx + 1);
     distance += 1;
   }
 }
@@ -236,6 +240,8 @@ static void hashmap_resize(HashMapInternal *map, size_t new_capacity) {
   ASSERT(map->data != NULL);
 
   map->capacity = new_capacity;
+  map->mask_capacity = new_capacity - 1;
+  map->grow_at = (map->capacity * HASHMAP_LOAD_FACTOR_PERCENT) / 100;
   hashmap_init_data(map);
 
   for (size_t i = 0; i < old_capacity; i += 1) {
@@ -290,9 +296,7 @@ bool hashmap_put_impl(HashMapInternal *map, const void *key,
 
   map->len += 1;
 
-  size_t per = hashmap_load_factor_percent(map);
-
-  if (per >= HASHMAP_LOAD_FACTOR_PERCENT) {
+  if (map->len > map->grow_at) {
     size_t new_capacity = map->capacity * 2;
     hashmap_resize(map, new_capacity);
   }
@@ -315,7 +319,7 @@ bool hashmap_put_impl(HashMapInternal *map, const void *key,
 
 static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
   Hash hash = hashmap_calculate_hash(map, key);
-  *idx = hash % map->capacity;
+  *idx = hashmap_mod_capacity(map, hash);
   size_t distance = 0;
 
   while (true) {
@@ -340,7 +344,7 @@ static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
       return true;
     }
 
-    *idx = (*idx + 1) % map->capacity;
+    *idx = hashmap_mod_capacity(map, *idx + 1);
     distance += 1;
   }
 }
@@ -396,7 +400,7 @@ bool hashmap_remove_impl(HashMapInternal *map, const void *key) {
     }
     slot.header->occupied = false;
 
-    size_t next_idx = (idx + 1) % map->capacity;
+    size_t next_idx = hashmap_mod_capacity(map, idx + 1);
 
     HashMapSlot next_slot = hashmap_get_slot_impl(map, next_idx);
 
