@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.21)
 
 project(codecrafters-http-server)
 
+option(HASHMAP_ENABLE_STATS "Collect hashmap operation statistics" OFF)
+
 set(CMAKE_C_STANDARD 23) # Enable the C23 standard
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
@@ -18,16 +20,16 @@ set(CMAKE_C_FLAGS " \
 )
 
 if(LOCAL)
-    set(CMAKE_C_CLANG_TIDY
-        clang-tidy
-        --use-color
-        --fix
-    )
-    set(CMAKE_CXX_CLANG_TIDY
-        clang-tidy
-        --use-color
-        --fix
-    )
+    # set(CMAKE_C_CLANG_TIDY
+    #     clang-tidy
+    #     --use-color
+    #     --fix
+    # )
+    # set(CMAKE_CXX_CLANG_TIDY
+    #     clang-tidy
+    #     --use-color
+    #     --fix
+    # )
 endif()
 
 # ------------------------------ GTEST ------------------------------
@@ -59,6 +61,10 @@ target_include_directories(http-server-lib PUBLIC src)
 
 target_link_libraries(http-server-lib PUBLIC ZLIB::ZLIB)
 target_compile_definitions(http-server-lib PUBLIC ZLIB_CONST=1)
+
+if(HASHMAP_ENABLE_STATS)
+    target_compile_definitions(http-server-lib PUBLIC HASHMAP_ENABLE_STATS=1)
+endif()
 
 add_executable(http-server src/main.c)
 target_link_libraries(http-server PRIVATE http-server-lib)

@@ -51,6 +51,22 @@ struct HashMapSlot {
 
 typedef struct HashMapSlot HashMapSlot;
 
+#ifdef HASHMAP_ENABLE_STATS
+struct HashMapStats {
+  size_t hash_calculations;
+  size_t put_calls;
+  size_t insert_probes;
+  size_t insert_swaps;
+  size_t lookup_calls;
+  size_t lookup_probes;
+  size_t remove_calls;
+  size_t remove_probes;
+  size_t resize_count;
+};
+
+typedef struct HashMapStats HashMapStats;
+#endif
+
 struct HashMapInternal {
   size_t len;
   size_t capacity;
@@ -65,6 +81,9 @@ struct HashMapInternal {
   size_t value_size;
   size_t value_offset;
   size_t slot_size;
+#ifdef HASHMAP_ENABLE_STATS
+  HashMapStats stats;
+#endif
   // Data := HashMapSlotHeader KEY VALUE * capacity
   // padding it for alignment
   // ┌─────────────── entry 0 ─────────────────────────────────────────────────┐
@@ -189,6 +208,14 @@ bool hashmap_contains_impl(HashMapInternal *map, const void *key);
 void hashmap_reserve_impl(HashMapInternal *map, size_t size);
 
 #define hashmap_reserve(map, size) hashmap_reserve_impl(&(map)->internal, size)
+
+#ifdef HASHMAP_ENABLE_STATS
+HashMapStats hashmap_stats_impl(const HashMapInternal *map);
+void hashmap_stats_reset_impl(HashMapInternal *map);
+
+#define hashmap_stats(map) hashmap_stats_impl(&(map)->internal)
+#define hashmap_stats_reset(map) hashmap_stats_reset_impl(&(map)->internal)
+#endif
 
 /* HASH FUNCTIONS */
 

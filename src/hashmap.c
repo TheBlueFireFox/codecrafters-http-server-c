@@ -8,6 +8,12 @@
 
 #define MAX(a, b) (a) < (b) ? (b) : (a)
 
+#ifdef HASHMAP_ENABLE_STATS
+#define HASHMAP_STAT_INC(map, field) ((map)->stats.field += 1)
+#else
+#define HASHMAP_STAT_INC(map, field) ((void)(map))
+#endif
+
 HashMapSlotConfigurations hashmap_slot_config(struct HashMapSlotQuery *query) {
   size_t slot_alignment = MAX(query->header_alignment, query->key_alignment);
   slot_alignment = MAX(slot_alignment, query->value_alignment);
@@ -53,6 +59,9 @@ HashMapSlot hashmap_get_slot_impl(HashMapInternal *map, size_t idx) {
 }
 
 static Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
+#ifdef HASHMAP_ENABLE_STATS
+  HASHMAP_STAT_INC(map, hash_calculations);
+#endif
   HashMapHashBuilder ctx = {
       .update = map->hash_algo.update,
   };
@@ -96,6 +105,9 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   map->value_offset = config.value_offset;
   map->slot_size = config.slot_size;
   map->hash_algo = algo;
+#ifdef HASHMAP_ENABLE_STATS
+  map->stats = (HashMapStats){0};
+#endif
 
   map->data = malloc(HASHMAP_DEFAULT_CAPACITY * map->slot_size);
   map->algo_config = calloc(128, 1);
@@ -173,6 +185,7 @@ static bool hashmap_put_inner_impl(HashMapInternal *map, Hash hash,
   memcpy(current_value, value, map->value_size);
 
   while (true) {
+    HASHMAP_STAT_INC(map, insert_probes);
     HashMapSlot slot = hashmap_get_slot_impl(map, idx);
     // Empty slot found
     if (!slot.header->occupied) {
@@ -196,6 +209,7 @@ static bool hashmap_put_inner_impl(HashMapInternal *map, Hash hash,
     // our distance is larger then the one from below, so move the one below
     // further along
     if (distance > slot_distance) {
+      HASHMAP_STAT_INC(map, insert_swaps);
       Hash new_hash;
       uint8_t new_key[map->key_size];
       uint8_t new_value[map->value_size];
@@ -237,6 +251,8 @@ static void hashmap_resize(HashMapInternal *map, size_t new_capacity) {
   // Resize storage
 
   uint8_t *old_data = map->data;
+
+  HASHMAP_STAT_INC(map, resize_count);
 
   size_t old_capacity = map->capacity;
 
@@ -291,6 +307,7 @@ void hashmap_reserve_impl(HashMapInternal *map, size_t size) {
 
 bool hashmap_put_impl(HashMapInternal *map, const void *key,
                       const void *value) {
+  HASHMAP_STAT_INC(map, put_calls);
   Hash hash = hashmap_calculate_hash(map, key);
   bool existing_entry = hashmap_put_inner_impl(map, hash, key, value);
 
@@ -322,11 +339,14 @@ bool hashmap_put_impl(HashMapInternal *map, const void *key,
 //
 
 static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
+  HASHMAP_STAT_INC(map, lookup_calls);
   Hash hash = hashmap_calculate_hash(map, key);
   *idx = hashmap_mod_capacity(map, hash);
   size_t distance = 0;
 
   while (true) {
+
+    HASHMAP_STAT_INC(map, lookup_probes);
 
     HashMapSlot slot = hashmap_get_slot_impl(map, *idx);
 
@@ -387,6 +407,7 @@ bool hashmap_contains_impl(HashMapInternal *map, const void *key) {
 //   └─ mark final hole empty
 
 bool hashmap_remove_impl(HashMapInternal *map, const void *key) {
+  HASHMAP_STAT_INC(map, remove_calls);
   size_t idx;
   bool exists = hashmap_lookup(map, key, &idx);
 
@@ -397,6 +418,7 @@ bool hashmap_remove_impl(HashMapInternal *map, const void *key) {
   map->len -= 1;
 
   while (true) {
+    HASHMAP_STAT_INC(map, remove_probes);
     HashMapSlot slot = hashmap_get_slot_impl(map, idx);
     // end of cluster
     if (!slot.header->occupied) {
@@ -430,6 +452,16 @@ bool hashmap_remove_impl(HashMapInternal *map, const void *key) {
     idx = next_idx;
   }
 }
+
+#ifdef HASHMAP_ENABLE_STATS
+HashMapStats hashmap_stats_impl(const HashMapInternal *map) {
+  return map->stats;
+}
+
+void hashmap_stats_reset_impl(HashMapInternal *map) {
+  map->stats = (HashMapStats){0};
+}
+#endif
 
 bool hashmap_equal_cstr(const void *a, const void *b, size_t key_size) {
   (void)key_size;

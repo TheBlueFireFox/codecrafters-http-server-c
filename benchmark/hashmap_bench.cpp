@@ -592,6 +592,83 @@ static void BM_HashMap_LoadFactor_Miss(benchmark::State &state) {
   hashmap_free(&map);
 }
 
+#ifdef HASHMAP_ENABLE_STATS
+static void BM_HashMap_Stats_inner(benchmark::State &state, auto init_map_fn) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto present = make_present_keys(count);
+  const auto missing = make_missing_keys(count);
+  HashMapStats totals{};
+
+  for (auto _ : state) {
+    (void)_;
+    state.PauseTiming();
+
+    U64Map map{};
+    init_map_fn(&map);
+    hashmap_reserve(&map, capacity_for_elements(count));
+    hashmap_stats_reset(&map);
+
+    state.ResumeTiming();
+
+    for (const auto key : present) {
+      hashmap_put(&map, key, key);
+    }
+    for (const auto key : present) {
+      benchmark::DoNotOptimize(hashmap_get(&map, key));
+    }
+    for (const auto key : missing) {
+      benchmark::DoNotOptimize(hashmap_get(&map, key));
+    }
+    for (const auto key : present) {
+      benchmark::DoNotOptimize(hashmap_remove(&map, key));
+    }
+
+    const HashMapStats stats = hashmap_stats(&map);
+    totals.hash_calculations += stats.hash_calculations;
+    totals.put_calls += stats.put_calls;
+    totals.insert_probes += stats.insert_probes;
+    totals.insert_swaps += stats.insert_swaps;
+    totals.lookup_calls += stats.lookup_calls;
+    totals.lookup_probes += stats.lookup_probes;
+    totals.remove_calls += stats.remove_calls;
+    totals.remove_probes += stats.remove_probes;
+    totals.resize_count += stats.resize_count;
+
+    state.PauseTiming();
+    hashmap_free(&map);
+    state.ResumeTiming();
+  }
+
+  const double iterations = static_cast<double>(state.iterations());
+  state.counters["hashes/op"] =
+      static_cast<double>(totals.hash_calculations) / iterations;
+  state.counters["insert-probes/put"] =
+      static_cast<double>(totals.insert_probes) / (double)totals.put_calls;
+  state.counters["swaps/put"] =
+      static_cast<double>(totals.insert_swaps) / (double)totals.put_calls;
+  state.counters["lookup-probes/lookup"] =
+      static_cast<double>(totals.lookup_probes) / (double)totals.lookup_calls;
+  state.counters["remove-probes/remove"] =
+      static_cast<double>(totals.remove_probes) / (double)totals.remove_calls;
+  state.counters["resizes/iteration"] =
+      static_cast<double>(totals.resize_count) / iterations;
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
+}
+static void BM_HashMap_StatsFnv1a(benchmark::State &state) {
+  BM_HashMap_Stats_inner(state, [](U64Map *map) {
+    hashmap_init_with_algo(map, Fnv1a, &hashmap_hash_u64, &hashmap_equal_bytes);
+  });
+}
+
+static void BM_HashMap_StatsSipHash(benchmark::State &state) {
+  BM_HashMap_Stats_inner(state, [](U64Map *map) {
+    hashmap_init_with_algo(map, SipHash, &hashmap_hash_u64,
+                           &hashmap_equal_bytes);
+  });
+}
+#endif
+
 /*
  * ==========================================================================
  * Registration
@@ -618,3 +695,7 @@ BENCHMARK_TEMPLATE(BM_Std_Erase, StdDefaultMap)->Apply(MapSizes);
 
 BENCHMARK(BM_HashMap_LoadFactor_Hit)->Apply(LoadFactors);
 BENCHMARK(BM_HashMap_LoadFactor_Miss)->Apply(LoadFactors);
+#ifdef HASHMAP_ENABLE_STATS
+BENCHMARK(BM_HashMap_StatsFnv1a)->Arg(1U << 14U);
+BENCHMARK(BM_HashMap_StatsSipHash)->Arg(1U << 14U);
+#endif
