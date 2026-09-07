@@ -15,11 +15,13 @@ void hashmap_fnv1a_init(void *ctx) {
 
 void hashmap_fnv1a_update(void *ctx, const void *data, size_t size) {
   Fnv1aContext *ctx_internal = ctx;
+  Hash hash = ctx_internal->state;
 
   for (size_t i = 0; i < size; i += 1) {
-    ctx_internal->state ^= *(((const uint8_t *)data) + i);
-    ctx_internal->state *= 0x00000100000001b3;
+    hash ^= *(((const uint8_t *)data) + i);
+    hash *= 0x00000100000001b3;
   }
+  ctx_internal->state = hash;
 }
 
 Hash hashmap_fnv1a_finalize(void *ctx) {
