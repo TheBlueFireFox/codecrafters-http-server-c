@@ -173,73 +173,164 @@ static size_t hashmap_probe_distance(HashMapInternal *map, size_t idx,
   return hashmap_mod_capacity(map, idx + map->capacity - ideal);
 }
 
-static bool hashmap_put_inner_impl(HashMapInternal *map, Hash hash,
-                                   const void *key, const void *value) {
-  size_t idx = hashmap_mod_capacity(map, hash);
-  size_t distance = 0;
+static bool hashmap_put_inner_displaced(HashMapInternal *map, Hash hash,
+                                        const void *key, const void *value,
+                                        size_t idx, HashMapSlot slot,
+                                        size_t distance) {
+  /*
+   * Two carrying buffers.
+   *
+   * "current" contains the entry we're trying to place.
+   * "next" is scratch space for the next resident we displace.
+   */
 
-  // Round robbin based insert
-  // if the currently selected pair has a larger travel distance then
-  // the one in the current slot, we save the current pair into the slot, while
-  // moving the ones from the slot out
-  Hash current_hash;
-  uint8_t current_key[map->key_size];
-  uint8_t current_value[map->value_size];
+  uint8_t key_a[map->key_size];
+  uint8_t key_b[map->key_size];
 
-  current_hash = hash;
-  memcpy(current_key, key, map->key_size);
-  memcpy(current_value, value, map->value_size);
+  uint8_t value_a[map->value_size];
+  uint8_t value_b[map->value_size];
+
+  uint8_t *current_key = key_a;
+  uint8_t *next_key = key_b;
+
+  uint8_t *current_value = value_a;
+  uint8_t *next_value = value_b;
+
+  /*
+   * Perform the first displacement specially.
+   *
+   * Save the resident entry into our first carrying buffer...
+   */
+
+  Hash current_hash = slot.header->hash;
+  memcpy(current_key, slot.key, map->key_size);
+  memcpy(current_value, slot.value, map->value_size);
+
+  /*
+   * ...and place the original input directly into the slot.
+   *
+   * Importantly, the original key/value never needed to be copied
+   * into temporary storage.
+   */
+
+  slot.header->hash = hash;
+
+  memcpy(slot.key, key, map->key_size);
+  memcpy(slot.value, value, map->value_size);
+
+  HASHMAP_STAT_INC(map, insert_swaps);
+
+  /*
+   * We're now carrying the resident that was displaced from this slot.
+   */
+  distance += 1;
+  idx = hashmap_mod_capacity(map, idx + 1);
 
   while (true) {
     HASHMAP_STAT_INC(map, insert_probes);
-    HashMapSlot slot = hashmap_get_slot_impl(map, idx);
-    // Empty slot found
+
+    slot = hashmap_get_slot_impl(map, idx);
+
+    /*
+     * Found a home for the entry we're carrying.
+     */
     if (slot.header->hash == HASHMAP_HASH_EMPTY) {
       slot.header->hash = current_hash;
+
       memcpy(slot.key, current_key, map->key_size);
       memcpy(slot.value, current_value, map->value_size);
 
       return false;
     }
 
+    const size_t next_slot_distance =
+        hashmap_probe_distance(map, idx, slot.header->hash);
+
+    if (distance > next_slot_distance) {
+      HASHMAP_STAT_INC(map, insert_swaps);
+
+      /*
+       * Save the resident we're about to evict into the unused
+       * carrying buffer.
+       */
+      const Hash next_hash = slot.header->hash;
+
+      memcpy(next_key, slot.key, map->key_size);
+      memcpy(next_value, slot.value, map->value_size);
+
+      /*
+       * Put our currently carried entry into this slot.
+       */
+      slot.header->hash = current_hash;
+
+      memcpy(slot.key, current_key, map->key_size);
+      memcpy(slot.value, current_value, map->value_size);
+
+      /*
+       * The resident we just evicted becomes the new carried entry.
+       */
+      current_hash = next_hash;
+
+      uint8_t *tmp;
+
+      tmp = current_key;
+      current_key = next_key;
+      next_key = tmp;
+
+      tmp = current_value;
+      current_value = next_value;
+      next_value = tmp;
+
+      distance = next_slot_distance;
+    }
+
+    idx = hashmap_mod_capacity(map, idx + 1);
+    distance += 1;
+  }
+}
+
+static bool hashmap_put_inner_direct(HashMapInternal *map, Hash hash,
+                                     const void *key, const void *value) {
+  size_t idx = hashmap_mod_capacity(map, hash);
+  size_t distance = 0;
+  // Round robbin based insert
+  // if the currently selected pair has a larger travel distance then
+  // the one in the current slot, we save the current pair into the slot, while
+  // moving the ones from the slot out
+  while (true) {
+    HASHMAP_STAT_INC(map, insert_probes);
+    HashMapSlot slot = hashmap_get_slot_impl(map, idx);
+    // Empty slot found
+    if (slot.header->hash == HASHMAP_HASH_EMPTY) {
+      slot.header->hash = hash;
+      memcpy(slot.key, key, map->key_size);
+      memcpy(slot.value, value, map->value_size);
+
+      return false;
+    }
+
     // we found the same key
     if (slot.header->hash == hash && map->eq_fn(slot.key, key, map->key_size)) {
-      memcpy(slot.value, current_value, map->value_size);
+      memcpy(slot.value, value, map->value_size);
       return true;
     }
 
     // How far has the current slot travelled
     size_t slot_distance = hashmap_probe_distance(map, idx, slot.header->hash);
 
-    // our distance is larger then the one from below, so move the one below
-    // further along
     if (distance > slot_distance) {
-      HASHMAP_STAT_INC(map, insert_swaps);
-      Hash new_hash;
-      uint8_t new_key[map->key_size];
-      uint8_t new_value[map->value_size];
-
-      // tmp copy
-      new_hash = slot.header->hash;
-      memcpy(new_key, slot.key, map->key_size);
-      memcpy(new_value, slot.value, map->value_size);
-
-      // into slot
-      slot.header->hash = current_hash;
-      memcpy(slot.key, current_key, map->key_size);
-      memcpy(slot.value, current_value, map->value_size);
-
-      // current ptr
-      current_hash = new_hash;
-      memcpy(current_key, new_key, map->key_size);
-      memcpy(current_value, new_value, map->value_size);
-
-      distance = slot_distance;
+      return hashmap_put_inner_displaced(map, hash, key, value, idx, slot,
+                                         distance);
     }
 
     idx = hashmap_mod_capacity(map, idx + 1);
     distance += 1;
   }
+}
+
+static bool hashmap_put_inner(HashMapInternal *map, Hash hash, const void *key,
+                              const void *value) {
+  return hashmap_put_inner_direct(map, hash, key, value);
 }
 
 // PUT
@@ -271,7 +362,7 @@ static void hashmap_resize(HashMapInternal *map, size_t new_capacity) {
   for (size_t i = 0; i < old_capacity; i += 1) {
     HashMapSlot slot = hashmap_get_slot_inner(map, i, old_data);
     if (slot.header->hash != HASHMAP_HASH_EMPTY) {
-      hashmap_put_inner_impl(map, slot.header->hash, slot.key, slot.value);
+      hashmap_put_inner(map, slot.header->hash, slot.key, slot.value);
     }
   }
   free(old_data);
@@ -312,7 +403,7 @@ bool hashmap_put_impl(HashMapInternal *map, const void *key,
                       const void *value) {
   HASHMAP_STAT_INC(map, put_calls);
   Hash hash = hashmap_calculate_hash(map, key);
-  bool existing_entry = hashmap_put_inner_impl(map, hash, key, value);
+  bool existing_entry = hashmap_put_inner(map, hash, key, value);
 
   if (existing_entry) {
     return true;
