@@ -180,6 +180,14 @@ const HashMapAlgorithm Fnv1a = {
     .algo = &hashmap_fnv1a_algo,
     .init = &hashmap_fnv1a_init,
     .update = &hashmap_fnv1a_update,
+    .update_u8 = &hashmap_fnv1a_update_u8,
+    .update_u16 = &hashmap_fnv1a_update_u16,
+    .update_u32 = &hashmap_fnv1a_update_u32,
+    .update_u64 = &hashmap_fnv1a_update_u64,
+    .update_i8 = &hashmap_fnv1a_update_i8,
+    .update_i16 = &hashmap_fnv1a_update_i16,
+    .update_i32 = &hashmap_fnv1a_update_i32,
+    .update_i64 = &hashmap_fnv1a_update_i64,
     .finalize = &hashmap_fnv1a_finalize,
 };
 
@@ -202,6 +210,20 @@ void hashmap_fnv1a_update(void *ctx, const void *data, size_t size) {
   ctx_internal->state = hash;
 }
 
+#define HASHMAP_DEFINE_FNV1A_UPDATE(type, suffix)                              \
+  void hashmap_fnv1a_update_##suffix(void *ctx, type value) {                  \
+    Fnv1aContext *ctx_internal = ctx;                                          \
+    const uint8_t *bytes = (const uint8_t *)&value;                            \
+                                                                               \
+    for (size_t i = 0; i < sizeof(value); ++i) {                               \
+      ctx_internal->state ^= bytes[i];                                         \
+      ctx_internal->state *= 0x00000100000001b3;                               \
+    }                                                                          \
+  }
+
+HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_FNV1A_UPDATE)
+#undef HASHMAP_DEFINE_FNV1A_UPDATE
+
 Hash hashmap_fnv1a_finalize(void *ctx) {
   Fnv1aContext *ctx_internal = ctx;
   return ctx_internal->state;
@@ -211,10 +233,18 @@ Hash hashmap_fnv1a_finalize(void *ctx) {
   void hashmap_hash_##suffix(HashMapHashBuilder *builder, const void *key,     \
                              size_t key_size) {                                \
     ASSERT(key_size == sizeof(type));                                          \
-    builder->update(builder->ctx.ctx_data, key, sizeof(type));                 \
+    type value;                                                                \
+    memcpy(&value, key, sizeof(value));                                        \
+    if (builder->update_##suffix != NULL) {                                    \
+      builder->update_##suffix(builder->ctx.ctx_data, value);                  \
+    } else {                                                                   \
+      builder->update(builder->ctx.ctx_data, &value, sizeof(value));           \
+    }                                                                          \
   }
 
 HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
+
+#undef HASHMAP_DEFINE_HASH_UPDATE
 
 void hashmap_hash_blob(HashMapHashBuilder *builder, const void *key,
                        size_t key_size) {
