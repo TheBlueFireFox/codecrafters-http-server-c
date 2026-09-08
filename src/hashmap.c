@@ -64,6 +64,16 @@ static Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
 #endif
   HashMapHashBuilder ctx = {
       .update = map->hash_algo.update,
+      .update_u8 = map->hash_algo.update_u8,
+      .update_u16 = map->hash_algo.update_u16,
+      .update_u32 = map->hash_algo.update_u32,
+      .update_u64 = map->hash_algo.update_u64,
+
+      .update_i8 = map->hash_algo.update_i8,
+      .update_i16 = map->hash_algo.update_i16,
+      .update_i32 = map->hash_algo.update_i32,
+      .update_i64 = map->hash_algo.update_i64,
+      .update_int = map->hash_algo.update_int,
   };
   map->hash_algo.init(&ctx.ctx, map->algo_config);
   map->hash_fn(&ctx, key, map->key_size);

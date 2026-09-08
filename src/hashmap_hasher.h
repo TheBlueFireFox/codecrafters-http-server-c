@@ -5,6 +5,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* HASHING HELPER FUNCTIONS */
+#define HASHMAP_INTEGER_TYPES(X)                                               \
+  X(uint8_t, u8)                                                               \
+  X(uint16_t, u16)                                                             \
+  X(uint32_t, u32)                                                             \
+  X(uint64_t, u64)                                                             \
+  X(int8_t, i8)                                                                \
+  X(int16_t, i16)                                                              \
+  X(int32_t, i32)                                                              \
+  X(int64_t, i64)                                                              \
+  X(int, int)
+
 /* HASHING FUNCTIONS */
 #define HASHMAP_HASH_CONTEXT_MAX_SIZE 64
 
@@ -16,12 +28,24 @@ typedef void (*HashMapContextInit)(void *ctx, const void *config);
 typedef void (*HashMapContextUpdate)(void *ctx, const void *data, size_t size);
 typedef Hash (*HashMapContextFinalize)(void *ctx);
 
+#define HASHMAP_DEFINE_HASH_UPDATE(type, suffix)                               \
+  typedef void (*HashMapContextUpdate##suffix)(void *ctx, type value);
+
+HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
+#undef HASHMAP_DEFINE_HASH_UPDATE
+
+#define HASHMAP_DEFINE_HASH_UPDATE(type, suffix)                               \
+  HashMapContextUpdate##suffix update_##suffix;
+
 struct HashMapHashBuilder {
-  HashMapContextUpdate update;
   union {
     max_align_t align;
     uint8_t ctx_data[HASHMAP_HASH_CONTEXT_MAX_SIZE];
   } ctx;
+
+  HashMapContextUpdate update;
+
+  HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
 };
 
 typedef struct HashMapHashBuilder HashMapHashBuilder;
@@ -30,9 +54,13 @@ struct HashMapAlgorithm {
   // VTable for hash builder
   HashMapContextInitAlgo algo;
   HashMapContextInit init;
+
   HashMapContextUpdate update;
+  HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
   HashMapContextFinalize finalize;
 };
+
+#undef HASHMAP_DEFINE_HASH_UPDATE
 
 typedef struct HashMapAlgorithm HashMapAlgorithm;
 
@@ -46,6 +74,12 @@ typedef struct Fnv1aContext Fnv1aContext;
 void hashmap_fnv1a_algo(void *config);
 void hashmap_fnv1a_init(void *ctx, const void *config);
 void hashmap_fnv1a_update(void *ctx, const void *data, size_t size);
+
+#define HASHMAP_DEFINE_HASH_UPDATE(type, suffix)                               \
+  void hashmap_fnv1a_update_##suffix(void *ctx, type value);
+
+HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
+#undef HASHMAP_DEFINE_HASH_UPDATE
 Hash hashmap_fnv1a_finalize(void *ctx);
 
 extern const HashMapAlgorithm Fnv1a;
@@ -81,18 +115,6 @@ void hashmap_siphash_update(void *ctx, const void *data, size_t size);
 Hash hashmap_siphash_finalize(void *ctx);
 
 extern const HashMapAlgorithm SipHash;
-
-/* HASHING HELPER FUNCTIONS */
-#define HASHMAP_INTEGER_TYPES(X)                                               \
-  X(uint8_t, u8)                                                               \
-  X(uint16_t, u16)                                                             \
-  X(uint32_t, u32)                                                             \
-  X(uint64_t, u64)                                                             \
-  X(int8_t, i8)                                                                \
-  X(int16_t, i16)                                                              \
-  X(int32_t, i32)                                                              \
-  X(int64_t, i64)                                                              \
-  X(int, int)
 
 typedef void (*HashMapHashFn)(HashMapHashBuilder *builder, const void *key,
                               size_t key_size);
