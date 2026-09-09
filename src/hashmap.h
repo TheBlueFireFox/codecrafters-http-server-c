@@ -1,7 +1,6 @@
 #ifndef HASHMAP_H
 #define HASHMAP_H
 
-#include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

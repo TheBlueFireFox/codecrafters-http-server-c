@@ -72,6 +72,14 @@ bool starts_with(const char *buf, const char *with);
 // - n from which offset the wildcard WILDCARD is found
 ssize_t starts_with_wildcard(const char *buf, const char *with);
 
+#ifdef __cplusplus
+#include <cstddef>
+#define ALIGNAS_MAX alignas(std::max_align_t)
+#else
+#include <stdalign.h>
+#define ALIGNAS_MAX _Alignas(max_align_t)
+#endif
+
 size_t align_up(size_t offset, size_t alignment);
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L

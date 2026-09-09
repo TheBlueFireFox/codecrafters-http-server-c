@@ -1,6 +1,8 @@
 #ifndef HASHMAP_HASHER_H
 #define HASHMAP_HASHER_H
 
+#include "utils.h"
+#include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -37,19 +39,6 @@ HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
 #define HASHMAP_DEFINE_HASH_UPDATE(type, suffix)                               \
   HashMapContextUpdate##suffix update_##suffix;
 
-struct HashMapHashBuilder {
-  union {
-    max_align_t align;
-    uint8_t ctx_data[HASHMAP_HASH_CONTEXT_MAX_SIZE];
-  } ctx;
-
-  HashMapContextUpdate update;
-
-  HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
-};
-
-typedef struct HashMapHashBuilder HashMapHashBuilder;
-
 struct HashMapAlgorithm {
   // VTable for hash builder
   HashMapContextInitAlgo algo;
@@ -59,10 +48,16 @@ struct HashMapAlgorithm {
   HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
   HashMapContextFinalize finalize;
 };
+typedef struct HashMapAlgorithm HashMapAlgorithm;
 
 #undef HASHMAP_DEFINE_HASH_UPDATE
 
-typedef struct HashMapAlgorithm HashMapAlgorithm;
+struct HashMapHashBuilder {
+  ALIGNAS_MAX uint8_t ctx_data[HASHMAP_HASH_CONTEXT_MAX_SIZE];
+  HashMapAlgorithm *algo;
+};
+
+typedef struct HashMapHashBuilder HashMapHashBuilder;
 
 /* HASHING FNV1A FUNCTIONS */
 struct Fnv1aContext {
