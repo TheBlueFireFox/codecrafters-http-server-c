@@ -113,7 +113,10 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   ASSERT(map->hash_fn != NULL);
   ASSERT(map->eq_fn != NULL);
   ASSERT(map->data != NULL);
-  map->hash_algo.algo(map->algo_config);
+
+  if (map->hash_algo.init_algorithm != NULL) {
+    map->hash_algo.init_algorithm(map->algo_config);
+  }
 }
 
 void hashmap_init_impl(HashMapInternal *map, HashMapHashFn hash_fn,
@@ -556,17 +559,3 @@ void hashmap_stats_reset_impl(HashMapInternal *map) {
   map->stats = (HashMapStats){0};
 }
 #endif
-
-bool hashmap_equal_cstr(const void *a, const void *b, size_t key_size) {
-  (void)key_size;
-
-  const char *sa = *(const char *const *)a;
-
-  const char *sb = *(const char *const *)b;
-
-  return strcmp(sa, sb) == 0;
-}
-
-bool hashmap_equal_bytes(const void *a, const void *b, size_t key_size) {
-  return memcmp(a, b, key_size) == 0;
-}

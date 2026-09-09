@@ -787,7 +787,7 @@ static void BM_HashMap_InsertAtOccupancy_Stats(benchmark::State &state) {
       hashmap_put(&map, key, key);
     }
 
-    assert(map.capacity == capacity);
+    assert(hashmap_capacity(&map) == capacity);
 
     hashmap_stats_reset(&map);
 
@@ -814,7 +814,7 @@ static void BM_HashMap_InsertAtOccupancy_Stats(benchmark::State &state) {
     totals.remove_probes += stats.remove_probes;
     totals.resize_count += stats.resize_count;
 
-    assert(map.capacity == capacity);
+    assert(hashmap_capacity(&map) == capacity);
 
     hashmap_free(&map);
 

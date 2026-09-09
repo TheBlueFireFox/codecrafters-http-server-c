@@ -116,6 +116,10 @@ typedef struct HashMapInternal HashMapInternal;
 
 #define hashmap_value_size(map) sizeof(*(map)->value_payload)
 
+#define hashmap_key(map) *(map)->key_payload
+
+#define hashmap_value(map) *(map)->value_payload
+
 #define hashmap_key_type(map) TYPEOF(*(map)->key_payload)
 
 #define hashmap_value_type(map) TYPEOF(*(map)->value_payload)
@@ -133,16 +137,18 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   hashmap_init_with_algo_impl(                                                 \
       (&(map)->internal), (algo), (hash_fn), (eq_fn), hashmap_key_size(map),   \
       hashmap_alignment_key(map), hashmap_value_size(map),                     \
-      hashmap_alignment_value(map));
+      hashmap_alignment_value(map))
 
 void hashmap_init_impl(HashMapInternal *map, HashMapHashFn hash_fn,
                        HashMapEqFn eq_fn, size_t key_size, size_t key_alignment,
                        size_t value_size, size_t value_alignment);
 
-#define hashmap_init(map, hash_fn, eq_fn)                                      \
-  hashmap_init_impl((&(map)->internal), (hash_fn), (eq_fn),                    \
+#define hashmap_init(map)                                                      \
+  hashmap_init_impl((&(map)->internal),                                        \
+                    (hashmap_hash_fn_for_key(hashmap_key(map))),               \
+                    (hashmap_eq_fn_for_key(hashmap_key(map))),                 \
                     hashmap_key_size(map), hashmap_alignment_key(map),         \
-                    hashmap_value_size(map), hashmap_alignment_value(map));
+                    hashmap_value_size(map), hashmap_alignment_value(map))
 
 void hashmap_free_impl(HashMapInternal *map);
 
@@ -225,13 +231,4 @@ void hashmap_stats_reset_impl(HashMapInternal *map);
 
 #define hashmap_stats_reset(map) hashmap_stats_reset_impl(&(map)->internal)
 #endif
-
-/* HASH FUNCTIONS */
-
-// cstr
-bool hashmap_equal_cstr(const void *a, const void *b, size_t key_size);
-
-// for int, uint64_t enum Foo etc...
-bool hashmap_equal_bytes(const void *a, const void *b, size_t key_size);
-
 #endif

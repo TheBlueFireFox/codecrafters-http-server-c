@@ -76,6 +76,7 @@ if(LOCAL)
 
     add_executable(http-server-test
         test/hashmap.cpp
+        test/hashmap_test_bridge.c
         test/queue.cpp
         test/vector.cpp
     )
