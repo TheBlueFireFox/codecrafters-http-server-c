@@ -5,6 +5,8 @@ extern "C" {
 #include "hashmap.h"
 }
 
+#include "hashmap_test_bridge.h"
+
 namespace {
 struct CountingContext {
   uint64_t state;
@@ -34,7 +36,7 @@ Hash hashmap_first_byte_finalize(void *ctx) {
 }
 
 const HashMapAlgorithm FirstByteAlgo = {
-    .algo = &hashmap_first_byte_algo,
+    .init_algorithm = nullptr,
     .init = &hashmap_first_byte_init,
     .update = &hashmap_first_byte_update,
     .finalize = &hashmap_first_byte_finalize,
@@ -110,9 +112,9 @@ INSTANTIATE_TEST_SUITE_P(HashMapSlotLayouts, HashMapAlignmentTest,
                                            AlignmentCase{16, 8, 3, 1, 4, 4}));
 
 TEST(TestHashMap, firstByteAlgo) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_int,
+  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_i32,
                          &hashmap_equal_bytes);
 
   int key = 1;
@@ -198,14 +200,14 @@ TEST(TestHashMap, FNV1a) {
 }
 
 TEST(TestHashMap, initFNV1a) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init_with_algo(&map, Fnv1a, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_init_with_algo(&map, Fnv1a, &hashmap_hash_i32, &hashmap_equal_bytes);
 
   EXPECT_EQ(map.internal.key_size, sizeof(int));
   EXPECT_EQ(map.internal.value_size, sizeof(const char *));
 
-  EXPECT_EQ(map.internal.hash_fn, &hashmap_hash_int);
+  EXPECT_EQ(map.internal.hash_fn, &hashmap_hash_i32);
   EXPECT_EQ(map.internal.eq_fn, &hashmap_equal_bytes);
   EXPECT_NE(map.internal.data, nullptr);
 
@@ -226,9 +228,9 @@ TEST(TestHashMap, initFNV1a) {
 }
 
 TEST(TestHashMap, getSlotByIndex) {
-  HashMap(int, const char *) map;
+  IntIntHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntInt(&map);
 
   const size_t index = 7;
   HashMapSlot slot = hashmap_get_slot(&map, index);
@@ -245,9 +247,9 @@ TEST(TestHashMap, getSlotByIndex) {
 }
 
 TEST(TestHashMap, free) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntString(&map);
 
   hashmap_free(&map);
 
@@ -257,9 +259,9 @@ TEST(TestHashMap, free) {
 }
 
 TEST(TestHashMap, putFNV1a) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init_with_algo(&map, Fnv1a, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_init_with_algo(&map, Fnv1a, &hashmap_hash_i32, &hashmap_equal_bytes);
 
   int key = 42;
   const char *value = "hello";
@@ -290,9 +292,9 @@ TEST(TestHashMap, putFNV1a) {
 }
 
 TEST(TestHashMap, putFirstByteAlgo) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_int,
+  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_i32,
                          &hashmap_equal_bytes);
 
   int key = 1;
@@ -320,9 +322,9 @@ TEST(TestHashMap, putFirstByteAlgo) {
 }
 
 TEST(TestHashMap, putOverride) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntString(&map);
 
   int key = 42;
 
@@ -361,9 +363,9 @@ TEST(TestHashMap, putOverride) {
 }
 
 TEST(TestHashMap, putMultiple) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_int,
+  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_i32,
                          &hashmap_equal_bytes);
 
   const int keys[] = {1, 17, 2, 33};
@@ -398,9 +400,9 @@ TEST(TestHashMap, putMultiple) {
 }
 
 TEST(TestHashMap, putAndGet) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntString(&map);
 
   int key = 42;
   const char *value = "hello";
@@ -419,9 +421,9 @@ TEST(TestHashMap, putAndGet) {
 }
 
 TEST(TestHashMap, putAndOverrideAndGet) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntString(&map);
 
   int key = 42;
   const char *value = "hello";
@@ -447,9 +449,9 @@ TEST(TestHashMap, putAndOverrideAndGet) {
 }
 
 TEST(TestHashMap, stringKeys) {
-  HashMap(const char *, int) map;
+  StringIntHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_string, &hashmap_equal_cstr);
+  hashmap_test_init_StringInt(&map);
 
   const char *first_key = "first";
   const char *second_key = "second";
@@ -476,9 +478,9 @@ TEST(TestHashMap, stringKeys) {
 }
 
 TEST(TestHashMap, removeEmpty) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntString(&map);
 
   int key = 42;
 
@@ -500,9 +502,9 @@ TEST(TestHashMap, removeEmpty) {
 }
 
 TEST(TestHashMap, removeSomething) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntString(&map);
 
   int key = 42;
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
@@ -523,9 +525,9 @@ TEST(TestHashMap, removeSomething) {
 }
 
 TEST(TestHashMap, removeMultiple) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_int,
+  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_i32,
                          &hashmap_equal_bytes);
 
   const int keys[] = {1, 17, 2, 33};
@@ -569,9 +571,9 @@ TEST(TestHashMap, removeMultiple) {
 }
 
 TEST(TestHashMap, removeWrapAroundCluster) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_int,
+  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_i32,
                          &hashmap_equal_bytes);
 
   const int keys[] = {15, 31, 47};
@@ -608,9 +610,9 @@ TEST(TestHashMap, removeWrapAroundCluster) {
 }
 
 TEST(TestHashMap, fillToCapacity) {
-  HashMap(int, int) map;
+  IntIntHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntInt(&map);
 
   const size_t initial_capacity = map.internal.capacity;
   // we resize after overrunning the load factor not before
@@ -635,9 +637,9 @@ TEST(TestHashMap, fillToCapacity) {
 }
 
 TEST(TestHashMap, resizePreservesEntries) {
-  HashMap(int, int) map;
+  IntIntHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntInt(&map);
 
   const size_t initial_capacity = map.internal.capacity;
 
@@ -677,9 +679,9 @@ TEST(TestHashMap, resizePreservesEntries) {
 }
 
 TEST(TestHashMap, removeStopsBeforeIdealEntry) {
-  HashMap(int, const char *) map;
+  IntStringHashMapTest map;
 
-  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_int,
+  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_i32,
                          &hashmap_equal_bytes);
 
   int key1 = 1;
@@ -706,8 +708,8 @@ TEST(TestHashMap, removeStopsBeforeIdealEntry) {
 }
 
 TEST(TestHashMap, ContainsReturnsWhetherKeyExists) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   int key = 42;
   int value = 123;
@@ -726,8 +728,8 @@ TEST(TestHashMap, ContainsReturnsWhetherKeyExists) {
 }
 
 TEST(TestHashMap, IsEmptyReflectsMapContents) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   EXPECT_TRUE(hashmap_is_empty(&map));
 
@@ -745,8 +747,8 @@ TEST(TestHashMap, IsEmptyReflectsMapContents) {
 }
 
 TEST(TestHashMap, CapacityReportsCurrentCapacity) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   const size_t initial_capacity = hashmap_capacity(&map);
 
@@ -756,8 +758,8 @@ TEST(TestHashMap, CapacityReportsCurrentCapacity) {
 }
 
 TEST(TestHashMap, CapacityGrowsWhenMapResizes) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   const size_t initial_capacity = hashmap_capacity(&map);
 
@@ -774,8 +776,8 @@ TEST(TestHashMap, CapacityGrowsWhenMapResizes) {
 }
 
 TEST(TestHashMap, ClearRemovesAllEntries) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   for (int i = 0; i < 10; ++i) {
     int value = i * 10;
@@ -798,8 +800,8 @@ TEST(TestHashMap, ClearRemovesAllEntries) {
 }
 
 TEST(TestHashMap, ClearLeavesMapReusable) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   hashmap_put(&map, 1, 10);
   hashmap_put(&map, 2, 20);
@@ -820,8 +822,8 @@ TEST(TestHashMap, ClearLeavesMapReusable) {
 }
 
 TEST(TestHashMap, ClearPreservesCapacity) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   for (int i = 0; i < 100; ++i) {
     hashmap_put(&map, i, i);
@@ -837,8 +839,8 @@ TEST(TestHashMap, ClearPreservesCapacity) {
 }
 
 TEST(TestHashMap, ReserveIncreasesCapacity) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   const size_t initial_capacity = hashmap_capacity(&map);
 
@@ -850,8 +852,8 @@ TEST(TestHashMap, ReserveIncreasesCapacity) {
 }
 
 TEST(TestHashMap, ReservePreservesExistingEntries) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   for (int i = 0; i < 10; ++i) {
     int value = i * 100;
@@ -874,8 +876,8 @@ TEST(TestHashMap, ReservePreservesExistingEntries) {
 }
 
 TEST(TestHashMap, ReserveDoesNotShrinkCapacity) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   hashmap_reserve(&map, 1000);
 
@@ -889,8 +891,8 @@ TEST(TestHashMap, ReserveDoesNotShrinkCapacity) {
 }
 
 TEST(TestHashMap, ReservePreventsResizeForRequestedEntries) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   constexpr size_t requested_entries = 100;
 
@@ -912,8 +914,8 @@ TEST(TestHashMap, ReservePreventsResizeForRequestedEntries) {
 }
 
 TEST(TestHashMap, LoadFactorCanChangeBeforeNextInsert) {
-  HashMap(int, int) map;
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  IntIntHashMapTest map;
+  hashmap_test_init_IntInt(&map);
 
   const size_t initial_capacity = hashmap_capacity(&map);
   hashmap_set_load_factor_percent(&map, 25);
@@ -934,10 +936,8 @@ namespace {
 constexpr int kOperations = 1000;
 constexpr int kKeyRange = 256;
 
-using IntIntHashMap = HashMap(int, int);
-
 void assert_map_matches_reference(
-    IntIntHashMap *map, const std::unordered_map<int, int> &reference) {
+    IntIntHashMapTest *map, const std::unordered_map<int, int> &reference) {
 
   EXPECT_EQ(map->internal.len, reference.size());
 
@@ -964,9 +964,9 @@ INSTANTIATE_TEST_SUITE_P(Seeds, HashMapRandomizedTest,
                                            0xFFFFFFFFU));
 
 TEST_P(HashMapRandomizedTest, MatchesStdUnorderedMap) {
-  IntIntHashMap map;
+  IntIntHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntInt(&map);
 
   std::unordered_map<int, int> reference;
 
@@ -1037,9 +1037,9 @@ TEST_P(HashMapRandomizedTest, MatchesStdUnorderedMap) {
 }
 
 TEST_P(HashMapRandomizedTest, CollisionHeavyMatchesReference) {
-  HashMap(int, int) map;
+  IntIntHashMapTest map;
 
-  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_int,
+  hashmap_init_with_algo(&map, FirstByteAlgo, &hashmap_hash_i32,
                          &hashmap_equal_bytes);
 
   std::unordered_map<int, int> reference;
@@ -1122,9 +1122,9 @@ TEST_P(HashMapRandomizedTest, CollisionHeavyMatchesReference) {
 }
 
 TEST_P(HashMapRandomizedTest, SurvivesRepeatedResizes) {
-  HashMap(int, int) map;
+  IntIntHashMapTest map;
 
-  hashmap_init(&map, &hashmap_hash_int, &hashmap_equal_bytes);
+  hashmap_test_init_IntInt(&map);
 
   std::unordered_map<int, int> reference;
 

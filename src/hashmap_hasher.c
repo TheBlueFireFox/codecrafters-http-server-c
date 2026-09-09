@@ -9,7 +9,7 @@
 typedef uint8_t SipHashKey[16];
 
 const HashMapAlgorithm SipHash = {
-    .algo = &hashmap_siphash_init_algo,
+    .init_algorithm = &hashmap_siphash_init_algo,
     .init = &hashmap_siphash_init,
     .update = &hashmap_siphash_update,
     .finalize = &hashmap_siphash_finalize,
@@ -176,22 +176,17 @@ Hash hashmap_siphash_finalize(void *ctx) {
   return hash->v0 ^ hash->v1 ^ hash->v2 ^ hash->v3;
 }
 
+#define HASHMAP_DEFINE_HASH_UPDATE(type, nice_suffix, suffix)                  \
+  .update_##suffix = &hashmap_fnv1a_update_##suffix,
+
 const HashMapAlgorithm Fnv1a = {
-    .algo = &hashmap_fnv1a_algo,
+    .init_algorithm = NULL,
     .init = &hashmap_fnv1a_init,
     .update = &hashmap_fnv1a_update,
-    .update_u8 = &hashmap_fnv1a_update_u8,
-    .update_u16 = &hashmap_fnv1a_update_u16,
-    .update_u32 = &hashmap_fnv1a_update_u32,
-    .update_u64 = &hashmap_fnv1a_update_u64,
-    .update_i8 = &hashmap_fnv1a_update_i8,
-    .update_i16 = &hashmap_fnv1a_update_i16,
-    .update_i32 = &hashmap_fnv1a_update_i32,
-    .update_i64 = &hashmap_fnv1a_update_i64,
     .finalize = &hashmap_fnv1a_finalize,
-};
+    HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)};
 
-void hashmap_fnv1a_algo(void *config) { (void)config; }
+#undef HASHMAP_DEFINE_HASH_UPDATE
 
 void hashmap_fnv1a_init(void *ctx, const void *config) {
   (void)config;
@@ -210,15 +205,17 @@ void hashmap_fnv1a_update(void *ctx, const void *data, size_t size) {
   ctx_internal->state = hash;
 }
 
-#define HASHMAP_DEFINE_FNV1A_UPDATE(type, suffix)                              \
+#define HASHMAP_DEFINE_FNV1A_UPDATE(type, nice_suffix, suffix)                 \
   void hashmap_fnv1a_update_##suffix(void *ctx, type value) {                  \
     Fnv1aContext *ctx_internal = ctx;                                          \
     const uint8_t *bytes = (const uint8_t *)&value;                            \
                                                                                \
-    for (size_t i = 0; i < sizeof(value); ++i) {                               \
-      ctx_internal->state ^= bytes[i];                                         \
-      ctx_internal->state *= 0x00000100000001b3;                               \
+    Hash state = ctx_internal->state;                                          \
+    for (size_t i = 0; i < sizeof(type); ++i) {                                \
+      state ^= bytes[i];                                                       \
+      state *= 0x00000100000001b3;                                             \
     }                                                                          \
+    ctx_internal->state = state;                                               \
   }
 
 HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_FNV1A_UPDATE)
@@ -229,12 +226,12 @@ Hash hashmap_fnv1a_finalize(void *ctx) {
   return ctx_internal->state;
 }
 
-#define HASHMAP_DEFINE_HASH_UPDATE(type, suffix)                               \
-  void hashmap_hash_##suffix(HashMapHashBuilder *builder, const void *key,     \
-                             size_t key_size) {                                \
+#define HASHMAP_DEFINE_HASH_UPDATE(type, nice_suffix, suffix)                  \
+  void hashmap_hash_##nice_suffix(HashMapHashBuilder *builder,                 \
+                                  const void *key, size_t key_size) {          \
     ASSERT(key_size == sizeof(type));                                          \
     type value;                                                                \
-    memcpy(&value, key, sizeof(value));                                        \
+    memcpy(&value, key, sizeof(type));                                         \
     if (builder->algo->update_##suffix != NULL) {                              \
       builder->algo->update_##suffix(builder->ctx_data, value);                \
     } else {                                                                   \
@@ -242,7 +239,7 @@ Hash hashmap_fnv1a_finalize(void *ctx) {
     }                                                                          \
   }
 
-HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
+HASHMAP_FULL_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
 
 #undef HASHMAP_DEFINE_HASH_UPDATE
 
@@ -260,4 +257,18 @@ void hashmap_hash_string(HashMapHashBuilder *builder, const void *key,
   size_t size = strlen(string);
   builder->algo->update(builder->ctx_data, string, size);
   hashmap_hash_u64(builder, &size, sizeof(size));
+}
+
+bool hashmap_equal_string(const void *a, const void *b, size_t key_size) {
+  (void)key_size;
+
+  const char *sa = *(const char *const *)a;
+
+  const char *sb = *(const char *const *)b;
+
+  return strcmp(sa, sb) == 0;
+}
+
+bool hashmap_equal_bytes(const void *a, const void *b, size_t key_size) {
+  return memcmp(a, b, key_size) == 0;
 }
