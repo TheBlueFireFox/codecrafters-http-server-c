@@ -42,11 +42,12 @@ const HashMapAlgorithm FirstByteAlgo = {
 
 Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
   HashMapHashBuilder ctx = {
-      .update = map->hash_algo.update,
+      .ctx_data = {0},
+      .algo = &map->hash_algo,
   };
-  map->hash_algo.init(&ctx.ctx, map->algo_config);
+  map->hash_algo.init(ctx.ctx_data, map->algo_config);
   map->hash_fn(&ctx, key, map->key_size);
-  return map->hash_algo.finalize(&ctx.ctx);
+  return map->hash_algo.finalize(ctx.ctx_data);
 }
 
 } // namespace
