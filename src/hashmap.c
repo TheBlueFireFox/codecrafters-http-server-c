@@ -107,6 +107,8 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   map->stats = (HashMapStats){0};
 #endif
 
+  map->control = calloc(HASHMAP_DEFAULT_CAPACITY, 1);
+  map->distance = calloc(HASHMAP_DEFAULT_CAPACITY, 1);
   map->data = calloc(HASHMAP_DEFAULT_CAPACITY, map->slot_size);
   map->algo_config = calloc(128, 1);
 
@@ -140,9 +142,13 @@ void hashmap_free_impl(HashMapInternal *map) {
   map->hash_fn = NULL;
   map->eq_fn = NULL;
 
+  free(map->control);
+  free(map->distance);
   free(map->data);
   free(map->algo_config);
 
+  map->control = NULL;
+  map->distance = NULL;
   map->data = NULL;
   map->algo_config = NULL;
 }
@@ -175,6 +181,53 @@ static size_t hashmap_probe_distance(HashMapInternal *map, size_t idx,
   size_t ideal = hashmap_mod_capacity(map, hash);
 
   return hashmap_mod_capacity(map, idx + map->capacity - ideal);
+}
+
+static Hash hashmap_hash_get_h1(Hash hash) {
+  return hash >> HASHMAP_HASH_H1_SHIFT;
+}
+
+static uint8_t hashmap_hash_get_h2(Hash hash) {
+  return hash & HASHMAP_HASH_H2_MASK;
+}
+
+static uint64_t hashmap_group_empties(uint8_t *ctrl) {
+  // search 2A
+  // 2A 91 17 2A 44 55 2A 12
+  // 80 00 00 80 00 00 80 00
+  uint64_t group;
+  memcpy(&group, ctrl, sizeof(uint64_t));
+  return group & HASHMAP_MATCHES_MAP;
+}
+
+static uint8_t hashmap_group_find_first_empty(uint8_t *ctrl) {
+  uint64_t group = hashmap_group_empties(ctrl);
+  return group > 0 ? (__builtin_ctzll(group) / 8) : 8;
+}
+
+static uint64_t hashmap_group_match(uint8_t *ctrl, uint8_t fingerprint) {
+  // search 2A
+  // 2A 91 17 2A 44 55 2A 12
+  // 80 00 00 80 00 00 80 00
+  uint64_t group;
+  memcpy(&group, ctrl, sizeof(uint64_t));
+
+  // will expand the fingerprint to repeate over all bytes
+  uint64_t needle = (uint64_t)fingerprint * HASHMAP_NEEDLE_MAP;
+  uint64_t x = group ^ needle; // every match will be 0x00
+  uint64_t matching_groups =
+      (x - HASHMAP_NEEDLE_MAP) & ~x & HASHMAP_MATCHES_MAP;
+  return matching_groups;
+}
+
+static uint8_t hashmap_group_find_distance_stop(const uint8_t *dist,
+                                                uint8_t current_distance) {
+  for (uint8_t i = 0; i < HASHMAP_PROBE_GROUP_SIZE; i += 1) {
+    if (*(dist + i) < current_distance + 1) {
+      return i;
+    }
+  }
+  return HASHMAP_PROBE_GROUP_SIZE;
 }
 
 static bool hashmap_put_inner_displaced(HashMapInternal *map, Hash hash,
@@ -356,7 +409,11 @@ static void hashmap_resize(HashMapInternal *map, size_t new_capacity) {
 
   size_t old_capacity = map->capacity;
 
+  map->control = calloc(new_capacity, 1);
+  map->distance = calloc(new_capacity, 1);
   map->data = calloc(new_capacity, map->slot_size);
+  ASSERT(map->control != NULL);
+  ASSERT(map->distance != NULL);
   ASSERT(map->data != NULL);
 
   map->capacity = new_capacity;
@@ -439,35 +496,58 @@ bool hashmap_put_impl(HashMapInternal *map, const void *key,
 static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
   HASHMAP_STAT_INC(map, lookup_calls);
   Hash hash = hashmap_calculate_hash(map, key);
-  *idx = hashmap_mod_capacity(map, hash);
-  size_t distance = 0;
+  Hash h1 = hashmap_hash_get_h1(hash);
+  uint8_t h2 = hashmap_hash_get_h2(hash);
+  *idx = hashmap_mod_capacity(map, h1);
+  uint8_t distance = 0;
 
   while (true) {
 
     HASHMAP_STAT_INC(map, lookup_probes);
+    uint8_t *ctrl = map->control + *idx;
 
-    HashMapSlot slot = hashmap_get_slot_impl(map, *idx);
+    // Process a group at a time
+    // Find first empty of this group
+    uint8_t first_empty = hashmap_group_find_first_empty(ctrl);
 
-    // Empty slot found
-    if (slot.header->hash == HASHMAP_HASH_EMPTY) {
-      return NULL;
+    uint8_t first_robin_hood_stop =
+        hashmap_group_find_distance_stop(map->distance + *idx, distance);
+
+    /*
+     * We cannot examine anything past either:
+     *
+     *   1. the first EMPTY slot
+     *   2. the first Robin Hood termination slot
+     */
+    uint8_t stop = first_empty < first_robin_hood_stop ? first_empty
+                                                       : first_robin_hood_stop;
+
+    uint64_t matches = hashmap_group_match(ctrl, h2);
+    while (matches > 0) {
+      // returns the
+      uint8_t bit = __builtin_ctzll(matches);
+      uint8_t slot = bit / 8;
+      // the first empty slot was closer then the first fitting h2
+      if (first_empty < slot) {
+        break;
+      }
+
+      if (slot >= stop) {
+        *idx = *idx + slot;
+        return false;
+      }
+
+      // we have a possible match
+      HashMapSlot current_slot = hashmap_get_slot_impl(map, *idx + slot);
+      if (map->eq_fn(current_slot.key, key, map->key_size)) {
+        return true;
+      }
+
+      matches &= matches - 1;
     }
 
-    // How far has the current slot travelled
-    size_t slot_distance = hashmap_probe_distance(map, *idx, slot.header->hash);
-
-    // we have traveled further then the slot below, so we have reached the end
-    // our "ideal" bucket
-    if (distance > slot_distance) {
-      return false;
-    }
-
-    if (slot.header->hash == hash && map->eq_fn(slot.key, key, map->key_size)) {
-      return true;
-    }
-
-    *idx = hashmap_mod_capacity(map, *idx + 1);
-    distance += 1;
+    *idx = hashmap_mod_capacity(map, *idx + HASHMAP_PROBE_GROUP_SIZE);
+    distance += HASHMAP_PROBE_GROUP_SIZE;
   }
 }
 
@@ -517,29 +597,29 @@ bool hashmap_remove_impl(HashMapInternal *map, const void *key) {
 
   while (true) {
     HASHMAP_STAT_INC(map, remove_probes);
-    HashMapSlot slot = hashmap_get_slot_impl(map, idx);
     // end of cluster
-    if (slot.header->hash == HASHMAP_HASH_EMPTY) {
+    if (*(map->control + idx) == HASHMAP_HASH_EMPTY) {
       return true;
     }
-    slot.header->hash = HASHMAP_HASH_EMPTY;
+    *(map->control + idx) = HASHMAP_HASH_EMPTY;
 
     size_t next_idx = hashmap_mod_capacity(map, idx + 1);
 
-    HashMapSlot next_slot = hashmap_get_slot_impl(map, next_idx);
-
-    if (next_slot.header == HASHMAP_HASH_EMPTY) {
+    if (*(map->control + next_idx) == HASHMAP_HASH_EMPTY) {
       return true;
     }
 
     // how far has the next slot traveled
-    size_t next_slot_distance =
-        hashmap_probe_distance(map, next_idx, next_slot.header->hash);
+    uint8_t next_slot_distance = map->distance[next_idx];
 
     // next_idx is the ideal position for the next entry
     if (next_slot_distance == 0) {
       return true;
     }
+
+    HashMapSlot slot = hashmap_get_slot_impl(map, idx);
+
+    HashMapSlot next_slot = hashmap_get_slot_impl(map, next_idx);
 
     // slide back the next idx
     slot.header->hash = next_slot.header->hash;

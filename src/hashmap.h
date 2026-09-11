@@ -11,6 +11,13 @@
 /* HASHMAP */
 #define HASHMAP_DEFAULT_CAPACITY 16
 #define HASHMAP_LOAD_FACTOR_PERCENT 80
+#define HASHMAP_PROBE_GROUP_SIZE 8
+#define HASHMAP_HASH_EMPTY 0x80
+#define HASHMAP_MAX_DISTANCE_ALLOWED 0xFF // Will cause a resize
+#define HASHMAP_HASH_H1_SHIFT 7
+#define HASHMAP_HASH_H2_MASK 0x7F
+#define HASHMAP_NEEDLE_MAP 0x0101010101010101ULL
+#define HASHMAP_MATCHES_MAP 0x8080808080808080ULL
 
 struct HashMapSlotQuery {
   size_t header_size;
@@ -34,8 +41,6 @@ typedef struct HashMapSlotConfigurations HashMapSlotConfigurations;
 #define MAX(a, b) (a) < (b) ? (b) : (a)
 
 HashMapSlotConfigurations hashmap_slot_config(struct HashMapSlotQuery *query);
-
-#define HASHMAP_HASH_EMPTY 0
 
 struct HashMapSlotHeader {
   Hash hash;
@@ -85,6 +90,18 @@ struct HashMapInternal {
 #ifdef HASHMAP_ENABLE_STATS
   HashMapStats stats;
 #endif
+  // control bytes
+  //                   64-bit hash
+  // ┌───────────────────────────────────────────────┬───────┐
+  // │                     H1                        │  H2   │
+  // └───────────────────────────────────────────────┴───────┘
+  //                                                    7 bits
+  // ┌────┬────┬────┬────┬────┬────┬────┬────┬ ... ┐
+  // │ H2 │ H2 │ E  │ H2 │ H2 │ D  │ H2 │ H2 │     │
+  // └────┴────┴────┴────┴────┴────┴────┴────┴ ... ┘
+  uint8_t *control;
+  // U
+  uint8_t *distance;
   // Data := HashMapSlotHeader KEY VALUE * capacity
   // padding it for alignment
   // ┌─────────────── entry 0 ─────────────────────────────────────────────────┐
