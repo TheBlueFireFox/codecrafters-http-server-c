@@ -11,10 +11,15 @@
 /* HASHMAP */
 #define HASHMAP_DEFAULT_CAPACITY 16
 #define HASHMAP_LOAD_FACTOR_PERCENT 80
+#define HASHMAP_PROBE_GROUP_SIZE 8
+#define HASHMAP_HASH_EMPTY 0x80
+#define HASHMAP_MAX_DISTANCE_ALLOWED 0xFF // Will cause a resize
+#define HASHMAP_HASH_H1(X) ((X) >> 7)
+#define HASHMAP_HASH_H2(X) ((uint8_t)(X) & 0x7F)
+#define HASHMAP_NEEDLE_MAP 0x0101010101010101ULL
+#define HASHMAP_MATCHES_MAP 0x8080808080808080ULL
 
 struct HashMapSlotQuery {
-  size_t header_size;
-  size_t header_alignment;
   size_t key_size;
   size_t key_alignment;
   size_t value_size;
@@ -35,16 +40,7 @@ typedef struct HashMapSlotConfigurations HashMapSlotConfigurations;
 
 HashMapSlotConfigurations hashmap_slot_config(struct HashMapSlotQuery *query);
 
-#define HASHMAP_HASH_EMPTY 0
-
-struct HashMapSlotHeader {
-  Hash hash;
-};
-
-typedef struct HashMapSlotHeader HashMapSlotHeader;
-
 struct HashMapSlot {
-  HashMapSlotHeader *header;
   void *key;
   void *value;
 };
@@ -59,9 +55,17 @@ struct HashMapStats {
   size_t insert_swaps;
   size_t lookup_calls;
   size_t lookup_probes;
+  size_t lookup_hits;
   size_t remove_calls;
   size_t remove_probes;
+  size_t reserved_inserts;
+  size_t growing_inserts;
   size_t resize_count;
+  size_t resize_only_ns;
+  size_t migrated_elements;
+  size_t entries_reinserted;
+  size_t allocations;
+  size_t groups_scanned_during_reinsertion;
 };
 
 typedef struct HashMapStats HashMapStats;
@@ -85,6 +89,18 @@ struct HashMapInternal {
 #ifdef HASHMAP_ENABLE_STATS
   HashMapStats stats;
 #endif
+  // control bytes
+  //                   64-bit hash
+  // ┌───────────────────────────────────────────────┬───────┐
+  // │                     H1                        │  H2   │
+  // └───────────────────────────────────────────────┴───────┘
+  //                                                    7 bits
+  // ┌────┬────┬────┬────┬────┬────┬────┬────┬ ... ┐
+  // │ H2 │ H2 │ E  │ H2 │ H2 │ D  │ H2 │ H2 │     │
+  // └────┴────┴────┴────┴────┴────┴────┴────┴ ... ┘
+  uint8_t *control;
+  // U
+  uint8_t *distance;
   // Data := HashMapSlotHeader KEY VALUE * capacity
   // padding it for alignment
   // ┌─────────────── entry 0 ─────────────────────────────────────────────────┐

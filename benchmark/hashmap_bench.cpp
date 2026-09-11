@@ -627,22 +627,66 @@ static void BM_HashMap_ConfiguredLoadFactor_Insert(benchmark::State &state) {
 
 #ifdef HASHMAP_ENABLE_STATS
 
+static void accumulate_stats(HashMapStats *totals,
+               const HashMapStats &stats) {
+  totals->hash_calculations += stats.hash_calculations;
+  totals->put_calls += stats.put_calls;
+  totals->insert_probes += stats.insert_probes;
+  totals->insert_swaps += stats.insert_swaps;
+  totals->lookup_calls += stats.lookup_calls;
+  totals->lookup_probes += stats.lookup_probes;
+  totals->lookup_hits += stats.lookup_hits;
+  totals->remove_calls += stats.remove_calls;
+  totals->remove_probes += stats.remove_probes;
+  totals->reserved_inserts += stats.reserved_inserts;
+  totals->growing_inserts += stats.growing_inserts;
+  totals->resize_count += stats.resize_count;
+  totals->resize_only_ns += stats.resize_only_ns;
+  totals->migrated_elements += stats.migrated_elements;
+  totals->entries_reinserted += stats.entries_reinserted;
+  totals->allocations += stats.allocations;
+  totals->groups_scanned_during_reinsertion +=
+    stats.groups_scanned_during_reinsertion;
+}
+
 static void BM_HashMap_Stats(benchmark::State &state,
-                             const HashMapStats &totals) {
+               const HashMapStats &totals, double item_count) {
 
   const double iterations = static_cast<double>(state.iterations());
   state.counters["hashes/op"] =
       static_cast<double>(totals.hash_calculations) / iterations;
+  state.counters["hashes/item"] =
+    static_cast<double>(totals.hash_calculations) / item_count;
   state.counters["insert-probes/put"] =
       static_cast<double>(totals.insert_probes) / (double)totals.put_calls;
   state.counters["swaps/put"] =
       static_cast<double>(totals.insert_swaps) / (double)totals.put_calls;
   state.counters["lookup-probes/lookup"] =
       static_cast<double>(totals.lookup_probes) / (double)totals.lookup_calls;
+    state.counters["lookup-hits/lookup"] =
+      static_cast<double>(totals.lookup_hits) / (double)totals.lookup_calls;
   state.counters["remove-probes/remove"] =
       static_cast<double>(totals.remove_probes) / (double)totals.remove_calls;
+    state.counters["reserved-inserts/item"] =
+      static_cast<double>(totals.reserved_inserts) / item_count;
+    state.counters["growing-inserts/item"] =
+      static_cast<double>(totals.growing_inserts) / item_count;
   state.counters["resizes/iteration"] =
       static_cast<double>(totals.resize_count) / iterations;
+    state.counters["resize-only-ns/iteration"] =
+      static_cast<double>(totals.resize_only_ns) / iterations;
+    state.counters["migrated-elements/iteration"] =
+      static_cast<double>(totals.migrated_elements) / iterations;
+    state.counters["entries-reinserted/iteration"] =
+      static_cast<double>(totals.entries_reinserted) / iterations;
+    state.counters["allocations/iteration"] =
+      static_cast<double>(totals.allocations) / iterations;
+    state.counters["groups-scanned-during-reinsertion/iteration"] =
+      static_cast<double>(totals.groups_scanned_during_reinsertion) /
+      iterations;
+    state.counters["groups/item"] =
+      static_cast<double>(totals.groups_scanned_during_reinsertion) /
+      item_count;
 }
 
 static void
@@ -671,15 +715,7 @@ BM_HashMap_ConfiguredLoadFactor_Insert_Stats(benchmark::State &state) {
 
     state.PauseTiming();
     const HashMapStats stats = hashmap_stats(&map);
-    totals.hash_calculations += stats.hash_calculations;
-    totals.put_calls += stats.put_calls;
-    totals.insert_probes += stats.insert_probes;
-    totals.insert_swaps += stats.insert_swaps;
-    totals.lookup_calls += stats.lookup_calls;
-    totals.lookup_probes += stats.lookup_probes;
-    totals.remove_calls += stats.remove_calls;
-    totals.remove_probes += stats.remove_probes;
-    totals.resize_count += stats.resize_count;
+    accumulate_stats(&totals, stats);
     capacity += hashmap_capacity(&map);
 
     hashmap_free(&map);
@@ -688,11 +724,66 @@ BM_HashMap_ConfiguredLoadFactor_Insert_Stats(benchmark::State &state) {
   }
 
   state.counters["load_factor"] = static_cast<double>(load_factor);
-  BM_HashMap_Stats(state, totals);
+  BM_HashMap_Stats(
+      state, totals,
+      static_cast<double>(state.iterations()) * static_cast<double>(count));
   state.counters["capacity"] =
       static_cast<double>(capacity) / static_cast<double>(state.iterations());
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
                           static_cast<int64_t>(count));
+}
+
+static void BM_HashMap_Rehash(benchmark::State &state) {
+  const auto count = static_cast<size_t>(state.range(0));
+  const auto keys = make_present_keys(count);
+  HashMapStats totals{};
+
+  for (auto _ : state) {
+  (void)_;
+  state.PauseTiming();
+
+  U64Map map{};
+  init_map(&map);
+  hashmap_reserve(&map, capacity_for_elements(count));
+
+  for (const auto key : keys) {
+    hashmap_put(&map, key, key);
+  }
+
+  hashmap_stats_reset(&map);
+  state.ResumeTiming();
+
+  hashmap_reserve(&map, capacity_for_elements(count * 2));
+  benchmark::ClobberMemory();
+
+  state.PauseTiming();
+  accumulate_stats(&totals, hashmap_stats(&map));
+  hashmap_free(&map);
+  state.ResumeTiming();
+  }
+
+  const double iterations = static_cast<double>(state.iterations());
+  const double items = iterations * static_cast<double>(count);
+
+  state.counters["hashes/item"] =
+    static_cast<double>(totals.hash_calculations) / items;
+  state.counters["groups/item"] =
+    static_cast<double>(totals.groups_scanned_during_reinsertion) / items;
+  state.counters["resize-only-ns/iteration"] =
+    static_cast<double>(totals.resize_only_ns) / iterations;
+  state.counters["migrated-elements/iteration"] =
+    static_cast<double>(totals.migrated_elements) / iterations;
+  state.counters["entries-reinserted/iteration"] =
+    static_cast<double>(totals.entries_reinserted) / iterations;
+  state.counters["allocations/iteration"] =
+    static_cast<double>(totals.allocations) / iterations;
+  state.counters["groups-scanned-during-reinsertion/iteration"] =
+    static_cast<double>(totals.groups_scanned_during_reinsertion) /
+    iterations;
+  state.counters["resizes/iteration"] =
+    static_cast<double>(totals.resize_count) / iterations;
+
+  state.SetItemsProcessed(static_cast<int64_t>(items));
 }
 
 static void BM_HashMap_Stats_inner(benchmark::State &state, auto init_map_fn) {
@@ -728,20 +819,13 @@ static void BM_HashMap_Stats_inner(benchmark::State &state, auto init_map_fn) {
     state.PauseTiming();
 
     const HashMapStats stats = hashmap_stats(&map);
-    totals.hash_calculations += stats.hash_calculations;
-    totals.put_calls += stats.put_calls;
-    totals.insert_probes += stats.insert_probes;
-    totals.insert_swaps += stats.insert_swaps;
-    totals.lookup_calls += stats.lookup_calls;
-    totals.lookup_probes += stats.lookup_probes;
-    totals.remove_calls += stats.remove_calls;
-    totals.remove_probes += stats.remove_probes;
-    totals.resize_count += stats.resize_count;
+    accumulate_stats(&totals, stats);
 
     hashmap_free(&map);
     state.ResumeTiming();
   }
-  BM_HashMap_Stats(state, totals);
+  BM_HashMap_Stats(state, totals,
+                   static_cast<double>(state.iterations()) * count * 3.0);
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
                           static_cast<int64_t>(count));
 }
@@ -875,6 +959,10 @@ BENCHMARK(BM_HashMap_ConfiguredLoadFactor_Insert)->Apply(LoadFactors);
 #ifdef HASHMAP_ENABLE_STATS
 BENCHMARK(BM_HashMap_StatsFnv1a)->Arg(1U << 14U);
 BENCHMARK(BM_HashMap_StatsSipHash)->Arg(1U << 14U);
+BENCHMARK(BM_HashMap_Rehash)
+  ->Arg(1U << 10U)
+  ->Arg(1U << 14U)
+  ->Arg(1U << 18U);
 BENCHMARK(BM_HashMap_ConfiguredLoadFactor_Insert_Stats)->Apply(LoadFactors);
 BENCHMARK(BM_HashMap_InsertAtOccupancy_Stats)
     ->Apply(LoadFactors)
