@@ -32,7 +32,8 @@ void hashmap_first_byte_update(void *ctx, const void *data, size_t size) {
 
 Hash hashmap_first_byte_finalize(void *ctx) {
   CountingContext *ictx = (CountingContext *)ctx;
-  return ictx->state;
+
+  return (ictx->state << 7) | ictx->state;
 }
 
 const HashMapAlgorithm FirstByteAlgo = {
@@ -69,8 +70,6 @@ TEST_P(HashMapAlignmentTest, ProducesCorrectlyAlignedSlots) {
   const auto p = GetParam();
 
   HashMapSlotQuery query{
-      .header_size = p.header_size,
-      .header_alignment = p.header_align,
       .key_size = p.key_size,
       .key_alignment = p.key_align,
       .value_size = p.value_size,
@@ -119,7 +118,7 @@ TEST(TestHashMap, firstByteAlgo) {
 
   int key = 1;
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
-  EXPECT_EQ(key, hash);
+  EXPECT_EQ(key, HASHMAP_HASH_H1(hash));
 
   hashmap_free(&map);
 }
@@ -214,14 +213,9 @@ TEST(TestHashMap, initFNV1a) {
   EXPECT_EQ(map.internal.len, 0);
   EXPECT_EQ(map.internal.capacity, HASHMAP_DEFAULT_CAPACITY);
 
-  size_t slot_size = map.internal.slot_size;
-
-  size_t map_size = slot_size * map.internal.capacity;
-
-  for (size_t i = 0; i < map_size; i += slot_size) {
-    uint8_t *slot_location = map.internal.data + i;
-    HashMapSlotHeader *header = (HashMapSlotHeader *)slot_location;
-    EXPECT_EQ(header->hash, HASHMAP_HASH_EMPTY);
+  for (size_t i = 0; i < map.internal.capacity + HASHMAP_PROBE_GROUP_SIZE;
+       i += 1) {
+    EXPECT_EQ(*(map.internal.control + i), HASHMAP_HASH_EMPTY);
   }
 
   hashmap_free(&map);
@@ -236,12 +230,12 @@ TEST(TestHashMap, getSlotByIndex) {
   HashMapSlot slot = hashmap_get_slot(&map, index);
   uint8_t *slot_location = map.internal.data + (index * map.internal.slot_size);
 
-  EXPECT_EQ(reinterpret_cast<uint8_t *>(slot.header), slot_location);
   EXPECT_EQ(static_cast<uint8_t *>(slot.key),
             slot_location + map.internal.key_offset);
   EXPECT_EQ(static_cast<uint8_t *>(slot.value),
             slot_location + map.internal.value_offset);
-  EXPECT_EQ(slot.header->hash, HASHMAP_HASH_EMPTY);
+
+  EXPECT_EQ(*(map.internal.control + index), HASHMAP_HASH_EMPTY);
 
   hashmap_free(&map);
 }
@@ -267,7 +261,7 @@ TEST(TestHashMap, putFNV1a) {
   const char *value = "hello";
 
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
-  size_t idx = hash % map.internal.capacity;
+  size_t idx = HASHMAP_HASH_H1(hash) % map.internal.capacity;
 
   bool had_entry = hashmap_put(&map, key, value);
   auto len = hashmap_len(&map);
@@ -279,12 +273,10 @@ TEST(TestHashMap, putFNV1a) {
   // hashmap
 
   auto slot = hashmap_get_slot(&map, idx);
-  HashMapSlotHeader *header = slot.header;
   const int *saved_key = (int *)slot.key;
   const char **saved_value = (const char **)slot.value;
 
-  EXPECT_NE(header->hash, HASHMAP_HASH_EMPTY);
-  EXPECT_EQ(header->hash, hash);
+  EXPECT_EQ(*(map.internal.control + idx), HASHMAP_HASH_H2(hash));
   EXPECT_EQ(*saved_key, key);
   EXPECT_STREQ(*saved_value, value);
 
@@ -300,7 +292,7 @@ TEST(TestHashMap, putFirstByteAlgo) {
   int key = 1;
   const char *value = "hello";
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
-  EXPECT_EQ(hash, key);
+  EXPECT_EQ(hash, 0x81);
 
   bool had_entry = hashmap_put(&map, key, value);
   auto len = hashmap_len(&map);
@@ -313,8 +305,9 @@ TEST(TestHashMap, putFirstByteAlgo) {
 
   HashMapSlot slot = hashmap_get_slot(&map, key);
 
-  EXPECT_NE(slot.header->hash, HASHMAP_HASH_EMPTY);
-  EXPECT_EQ(slot.header->hash, hash);
+  EXPECT_EQ(*(map.internal.control + key), HASHMAP_HASH_H2(hash));
+  EXPECT_EQ(*(map.internal.control + map.internal.capacity + key),
+            HASHMAP_HASH_H2(hash));
   EXPECT_EQ(*(int *)slot.key, key);
   EXPECT_STREQ(*(const char **)slot.value, value);
 
@@ -329,9 +322,7 @@ TEST(TestHashMap, putOverride) {
   int key = 42;
 
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
-  size_t idx = hash % map.internal.capacity;
-  size_t slot_size =
-      sizeof(HashMapSlotHeader) + sizeof(key) + sizeof(const char *);
+  size_t idx = HASHMAP_HASH_H1(hash) % map.internal.capacity;
 
   bool had_entry = hashmap_put(&map, key, "hello");
   auto len = hashmap_len(&map);
@@ -350,12 +341,10 @@ TEST(TestHashMap, putOverride) {
   // hashmap
   HashMapSlot slot = hashmap_get_slot(&map, idx);
 
-  HashMapSlotHeader *header = slot.header;
   const int *saved_key = (int *)slot.key;
   const char **saved_value = (const char **)slot.value;
 
-  EXPECT_NE(header->hash, HASHMAP_HASH_EMPTY);
-  EXPECT_EQ(header->hash, hash);
+  EXPECT_EQ(*(map.internal.control + idx), HASHMAP_HASH_H2(hash));
   EXPECT_EQ(*saved_key, key);
   EXPECT_STREQ(*saved_value, value2);
 
@@ -379,21 +368,33 @@ TEST(TestHashMap, putMultiple) {
 
   const int expected_keys[] = {1, 17, 33, 2};
   const char *expected_values[] = {"one", "seventeen", "thirty-three", "two"};
+  const int expected_distance[] = {0, 1, 2, 2};
 
   for (size_t i = 0; i < 4; i += 1) {
-    HashMapSlot slot = hashmap_get_slot(&map, i + 1);
+    size_t idx = i + 1;
+    HashMapSlot slot = hashmap_get_slot(&map, idx);
 
-    ASSERT_NE(slot.header->hash, HASHMAP_HASH_EMPTY);
-    EXPECT_EQ(slot.header->hash, expected_keys[i]);
-    EXPECT_EQ(*(int *)slot.key, expected_keys[i]);
-    EXPECT_STREQ(*(const char **)slot.value, expected_values[i]);
+    EXPECT_EQ(*(map.internal.control + idx), expected_keys[i])
+        << " idx " << idx << " i " << i;
+    EXPECT_EQ(*(map.internal.control + map.internal.capacity + idx),
+              expected_keys[i])
+        << " idx " << idx << " i " << i;
+    EXPECT_EQ(*(map.internal.distance + idx), expected_distance[i])
+        << " idx " << idx << " i " << i;
+    EXPECT_EQ(*(map.internal.distance + map.internal.capacity + idx),
+              expected_distance[i]);
+
+    EXPECT_EQ(*(int *)slot.key, expected_keys[i])
+        << " idx " << idx << " i " << i;
+    EXPECT_STREQ(*(const char **)slot.value, expected_values[i])
+        << " idx " << idx << " i " << i;
   }
 
   for (size_t i = 0; i < 4; i += 1) {
     const char **result = hashmap_get(&map, keys[i]);
 
-    ASSERT_NE(result, nullptr);
-    EXPECT_STREQ(*result, values[i]);
+    ASSERT_NE(result, nullptr) << " i: " << i;
+    EXPECT_STREQ(*result, values[i]) << " i: " << i;
   }
 
   hashmap_free(&map);
@@ -485,18 +486,14 @@ TEST(TestHashMap, removeEmpty) {
   int key = 42;
 
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
-  size_t idx = hash % map.internal.capacity;
+  size_t idx = HASHMAP_HASH_H1(hash) % map.internal.capacity;
 
   EXPECT_EQ(map.internal.len, 0);
   bool removed = hashmap_remove(&map, key);
   EXPECT_FALSE(removed);
   EXPECT_EQ(map.internal.len, 0);
 
-  size_t slot_size = sizeof(HashMapSlotHeader) + map.internal.key_size +
-                     map.internal.value_size;
-  uint8_t *slot_location = map.internal.data + (slot_size * idx);
-  HashMapSlotHeader *header = (HashMapSlotHeader *)slot_location;
-  EXPECT_EQ(header->hash, HASHMAP_HASH_EMPTY);
+  EXPECT_EQ(*(map.internal.control + idx), HASHMAP_HASH_EMPTY);
 
   hashmap_free(&map);
 }
@@ -508,18 +505,14 @@ TEST(TestHashMap, removeSomething) {
 
   int key = 42;
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
-  size_t idx = hash % map.internal.capacity;
+  size_t idx = HASHMAP_HASH_H1(hash) % map.internal.capacity;
   const char *value = "hello";
   hashmap_put(&map, key, value);
 
   bool removed = hashmap_remove(&map, key);
   EXPECT_TRUE(removed);
 
-  size_t slot_size = sizeof(HashMapSlotHeader) + map.internal.key_size +
-                     map.internal.value_size;
-  uint8_t *slot_location = map.internal.data + (slot_size * idx);
-  HashMapSlotHeader *header = (HashMapSlotHeader *)slot_location;
-  EXPECT_EQ(header->hash, HASHMAP_HASH_EMPTY);
+  EXPECT_EQ(*(map.internal.control + idx), HASHMAP_HASH_EMPTY);
 
   hashmap_free(&map);
 }
@@ -546,14 +539,13 @@ TEST(TestHashMap, removeMultiple) {
 
   for (size_t i = 0; i < 3; i += 1) {
     HashMapSlot slot = hashmap_get_slot(&map, i + 1);
+    EXPECT_EQ(*(map.internal.control + i + 1), expected_keys[i]);
 
-    ASSERT_NE(slot.header->hash, HASHMAP_HASH_EMPTY);
-    EXPECT_EQ(slot.header->hash, expected_keys[i]);
     EXPECT_EQ(*(int *)slot.key, expected_keys[i]);
     EXPECT_STREQ(*(const char **)slot.value, expected_values[i]);
   }
 
-  EXPECT_EQ(hashmap_get_slot(&map, 4).header->hash, HASHMAP_HASH_EMPTY);
+  EXPECT_EQ(*(map.internal.control + 4), HASHMAP_HASH_EMPTY);
   EXPECT_EQ(hashmap_get(&map, removed_key), nullptr);
 
   for (size_t i = 0; i < 4; i += 1) {
@@ -583,10 +575,9 @@ TEST(TestHashMap, removeWrapAroundCluster) {
     EXPECT_FALSE(hashmap_put(&map, keys[i], values[i]));
   }
 
-  EXPECT_NE(hashmap_get_slot(&map, map.internal.capacity - 1).header->hash,
-            HASHMAP_HASH_EMPTY);
-  EXPECT_NE(hashmap_get_slot(&map, 0).header->hash, HASHMAP_HASH_EMPTY);
-  EXPECT_NE(hashmap_get_slot(&map, 1).header->hash, HASHMAP_HASH_EMPTY);
+  EXPECT_EQ(*(map.internal.control + map.internal.capacity - 1), keys[0]);
+  EXPECT_EQ(*(map.internal.control), keys[1]);
+  EXPECT_EQ(*(map.internal.control + 1), keys[2]);
 
   EXPECT_TRUE(hashmap_remove(&map, keys[0]));
   EXPECT_EQ(hashmap_get(&map, keys[0]), nullptr);
@@ -1054,10 +1045,9 @@ TEST_P(HashMapRandomizedTest, CollisionHeavyMatchesReference) {
   for (int i = 0; i < kOperations; ++i) {
     int operation = operation_distribution(rng);
 
-    /*
-     * Lots of keys share the same low byte / bucket pattern,
-     * depending on how FirstByteAlgo behaves.
-     */
+    // Lots of keys share the same low byte / bucket pattern,
+    // depending on how FirstByteAlgo behaves.
+
     int key = base_distribution(rng) + (collision_distribution(rng) * 256);
 
     switch (operation) {
