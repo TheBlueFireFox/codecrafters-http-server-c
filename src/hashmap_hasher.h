@@ -157,18 +157,24 @@ bool hashmap_equal_string(const void *a, const void *b, size_t key_size);
 // for int, uint64_t enum Foo etc...
 bool hashmap_equal_bytes(const void *a, const void *b, size_t key_size);
 
+#define HASHMAP_DEFINE_HASH_UPDATE(type, nice_suffix, suffix)                  \
+  bool hashmap_equal_##nice_suffix(const void *a, const void *b,               \
+                                   size_t key_size);
+
+HASHMAP_FULL_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
+#undef HASHMAP_DEFINE_HASH_UPDATE
+
 #define hashmap_eq_fn_for_key(key_expr)                                        \
   _Generic((key_expr),                                                         \
-      uint8_t: &hashmap_equal_bytes,                                           \
-      uint16_t: &hashmap_equal_bytes,                                          \
-      uint32_t: &hashmap_equal_bytes,                                          \
-      uint64_t: &hashmap_equal_bytes,                                          \
-      int8_t: &hashmap_equal_bytes,                                            \
-      int16_t: &hashmap_equal_bytes,                                           \
-      int32_t: &hashmap_equal_bytes,                                           \
-      int64_t: &hashmap_equal_bytes,                                           \
-      char *: &hashmap_equal_string,                                            \
-      const char *: &hashmap_equal_string,                                      \
+      uint8_t: &hashmap_equal_u8,                                               \
+      uint16_t: &hashmap_equal_u16,                                             \
+      uint32_t: &hashmap_equal_u32,                                             \
+      uint64_t: &hashmap_equal_u64,                                             \
+      int8_t: &hashmap_equal_i8,                                                \
+      int16_t: &hashmap_equal_i16,                                              \
+      int32_t: &hashmap_equal_i32,                                              \
+      int64_t: &hashmap_equal_i64,                                              \
+      const char *: &hashmap_equal_string,                                     \
       default: &hashmap_unsupported_key_type)
 
 #endif

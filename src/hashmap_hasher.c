@@ -230,8 +230,7 @@ Hash hashmap_fnv1a_finalize(void *ctx) {
   void hashmap_hash_##nice_suffix(HashMapHashBuilder *builder,                 \
                                   const void *key, size_t key_size) {          \
     ASSERT(key_size == sizeof(type));                                          \
-    type value;                                                                \
-    memcpy(&value, key, sizeof(type));                                         \
+    const type value = *(const type *)key;                                     \
     if (builder->algo->update_##suffix != NULL) {                              \
       builder->algo->update_##suffix(builder->ctx_data, value);                \
     } else {                                                                   \
@@ -268,6 +267,17 @@ bool hashmap_equal_string(const void *a, const void *b, size_t key_size) {
 
   return strcmp(sa, sb) == 0;
 }
+
+#define HASHMAP_DEFINE_EQUAL(type, nice_suffix, suffix)                        \
+  bool hashmap_equal_##nice_suffix(const void *a, const void *b,               \
+                                   size_t key_size) {                          \
+    ASSERT(key_size == sizeof(type));                                          \
+    return *(const type *)a == *(const type *)b;                               \
+  }
+
+HASHMAP_FULL_INTEGER_TYPES(HASHMAP_DEFINE_EQUAL)
+
+#undef HASHMAP_DEFINE_HASH_UPDATE
 
 bool hashmap_equal_bytes(const void *a, const void *b, size_t key_size) {
   return memcmp(a, b, key_size) == 0;
