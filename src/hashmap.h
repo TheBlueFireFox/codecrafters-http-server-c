@@ -79,6 +79,7 @@ struct HashMapInternal {
   size_t load_factor_percent;
   HashMapAlgorithm hash_algo;
   HashMapHashFn hash_fn;
+  HashMapOneShotHashFn one_shot_hash_fn;
   HashMapEqFn eq_fn;
   uint8_t *algo_config;
   size_t key_size;
@@ -149,11 +150,23 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
                                  size_t key_size, size_t key_alignment,
                                  size_t value_size, size_t value_alignment);
 
+void hashmap_init_with_algo_and_hash_impl(
+  HashMapInternal *map, HashMapAlgorithm algo, HashMapHashFn hash_fn,
+  HashMapOneShotHashFn one_shot_hash_fn, HashMapEqFn eq_fn, size_t key_size,
+  size_t key_alignment, size_t value_size, size_t value_alignment);
+
 #define hashmap_init_with_algo(map, algo, hash_fn, eq_fn)                      \
   hashmap_init_with_algo_impl(                                                 \
       (&(map)->internal), (algo), (hash_fn), (eq_fn), hashmap_key_size(map),   \
       hashmap_alignment_key(map), hashmap_value_size(map),                     \
       hashmap_alignment_value(map))
+
+#define hashmap_init_with_algo_and_hash(map, algo, hash_fn, one_shot_hash_fn,   \
+                                        eq_fn)                                  \
+  hashmap_init_with_algo_and_hash_impl(                                         \
+      (&(map)->internal), (algo), (hash_fn), (one_shot_hash_fn), (eq_fn),       \
+      hashmap_key_size(map), hashmap_alignment_key(map),                       \
+      hashmap_value_size(map), hashmap_alignment_value(map))
 
 void hashmap_init_impl(HashMapInternal *map, HashMapHashFn hash_fn,
                        HashMapEqFn eq_fn, size_t key_size, size_t key_alignment,

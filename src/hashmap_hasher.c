@@ -226,6 +226,22 @@ Hash hashmap_fnv1a_finalize(void *ctx) {
   return ctx_internal->state;
 }
 
+#define HASHMAP_DEFINE_FNV1A_HASH(type, nice_suffix, suffix)                  \
+  Hash hashmap_fnv1a_hash_##nice_suffix(const void *key, size_t key_size) {    \
+    ASSERT(key_size == sizeof(type));                                          \
+    const uint8_t *bytes = key;                                                \
+    Hash hash = UINT64_C(0xcbf29ce484222325);                                  \
+    for (size_t i = 0; i < sizeof(type); i += 1) {                             \
+      hash ^= bytes[i];                                                        \
+      hash *= UINT64_C(0x00000100000001b3);                                    \
+    }                                                                          \
+    return hash;                                                               \
+  }
+
+HASHMAP_FULL_INTEGER_TYPES(HASHMAP_DEFINE_FNV1A_HASH)
+
+#undef HASHMAP_DEFINE_FNV1A_HASH
+
 #define HASHMAP_DEFINE_HASH_UPDATE(type, nice_suffix, suffix)                  \
   void hashmap_hash_##nice_suffix(HashMapHashBuilder *builder,                 \
                                   const void *key, size_t key_size) {          \

@@ -66,6 +66,10 @@ static Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
 #ifdef HASHMAP_ENABLE_STATS
   HASHMAP_STAT_INC(map, hash_calculations);
 #endif
+  if (map->one_shot_hash_fn != NULL) {
+    return map->one_shot_hash_fn(key, map->key_size);
+  }
+
   HashMapHashBuilder ctx = {
       .ctx_data = {0},
       .algo = &map->hash_algo,
@@ -79,6 +83,15 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
                                  HashMapHashFn hash_fn, HashMapEqFn eq_fn,
                                  size_t key_size, size_t key_alignment,
                                  size_t value_size, size_t value_alignment) {
+  hashmap_init_with_algo_and_hash_impl(map, algo, hash_fn, NULL, eq_fn,
+                                       key_size, key_alignment, value_size,
+                                       value_alignment);
+}
+
+void hashmap_init_with_algo_and_hash_impl(
+    HashMapInternal *map, HashMapAlgorithm algo, HashMapHashFn hash_fn,
+    HashMapOneShotHashFn one_shot_hash_fn, HashMapEqFn eq_fn, size_t key_size,
+    size_t key_alignment, size_t value_size, size_t value_alignment) {
 
   struct HashMapSlotQuery query = {
       .key_size = key_size,
@@ -94,6 +107,7 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   map->load_factor_percent = HASHMAP_LOAD_FACTOR_PERCENT;
   map->grow_at = (map->capacity * map->load_factor_percent) / 100;
   map->hash_fn = hash_fn;
+  map->one_shot_hash_fn = one_shot_hash_fn;
   map->eq_fn = eq_fn;
   map->key_size = key_size;
   map->key_offset = config.key_offset;
@@ -115,7 +129,7 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   map->algo_config = calloc(128, 1);
   HASHMAP_STAT_INC(map, allocations);
 
-  ASSERT(map->hash_fn != NULL);
+  ASSERT(map->hash_fn != NULL || map->one_shot_hash_fn != NULL);
   ASSERT(map->eq_fn != NULL);
   ASSERT(map->data != NULL);
 
@@ -143,6 +157,7 @@ void hashmap_free_impl(HashMapInternal *map) {
   map->value_offset = 0;
   map->slot_size = 0;
   map->hash_fn = NULL;
+  map->one_shot_hash_fn = NULL;
   map->eq_fn = NULL;
 
   free(map->control);
@@ -222,15 +237,15 @@ static void hashmap_control_set(HashMapInternal *map, size_t idx, uint8_t h2,
   }
 }
 
-static uint8_t hashmap_group_find_distance_stop(const uint8_t *dist,
-                                                uint8_t current_distance) {
-  for (uint8_t i = 0; i < HASHMAP_PROBE_GROUP_SIZE; i += 1) {
-    if (*(dist + i) < current_distance + i) {
-      return i;
-    }
-  }
-  return HASHMAP_PROBE_GROUP_SIZE;
-}
+// static uint8_t hashmap_group_find_distance_stop(const uint8_t *dist,
+//                                                 uint8_t current_distance) {
+//   for (uint8_t i = 0; i < HASHMAP_PROBE_GROUP_SIZE; i += 1) {
+//     if (*(dist + i) < current_distance + i) {
+//       return i;
+//     }
+//   }
+//   return HASHMAP_PROBE_GROUP_SIZE;
+// }
 
 static bool hashmap_put_inner_displaced(HashMapInternal *map, const void *key,
                                         const void *value, size_t idx,
@@ -570,7 +585,6 @@ static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
   Hash h1 = HASHMAP_HASH_H1(hash);
   uint8_t h2 = HASHMAP_HASH_H2(hash);
   *idx = hashmap_mod_capacity(map, h1);
-  uint8_t distance = 0;
 
   while (true) {
 
@@ -581,17 +595,7 @@ static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
     // Find first empty of this group
     uint8_t first_empty = hashmap_group_find_first_empty(ctrl);
 
-    uint8_t first_robin_hood_stop =
-        hashmap_group_find_distance_stop(map->distance + *idx, distance);
-
-    /*
-     * We cannot examine anything past either:
-     *
-     *   1. the first EMPTY slot
-     *   2. the first Robin Hood termination slot
-     */
-    uint8_t stop = first_empty < first_robin_hood_stop ? first_empty
-                                                       : first_robin_hood_stop;
+    uint8_t stop = first_empty;
 
     uint64_t matches = hashmap_group_match(ctrl, h2);
     while (matches > 0) {
@@ -628,7 +632,6 @@ static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
     }
 
     *idx = hashmap_mod_capacity(map, *idx + HASHMAP_PROBE_GROUP_SIZE);
-    distance += HASHMAP_PROBE_GROUP_SIZE;
   }
 }
 

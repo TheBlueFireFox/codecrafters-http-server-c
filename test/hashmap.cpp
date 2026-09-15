@@ -53,6 +53,11 @@ Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
   return map->hash_algo.finalize(ctx.ctx_data);
 }
 
+Hash hashmap_one_shot_hash(const void *key, size_t key_size) {
+  EXPECT_EQ(key_size, sizeof(int));
+  return ((Hash)(*(const int *)key + 5) << 7) | 42;
+}
+
 } // namespace
 
 struct AlignmentCase {
@@ -123,6 +128,25 @@ TEST(TestHashMap, firstByteAlgo) {
   hashmap_free(&map);
 }
 
+TEST(TestHashMap, oneShotHashTakesPrecedence) {
+  IntStringHashMapTest map;
+
+  hashmap_init_with_algo_and_hash(&map, FirstByteAlgo, nullptr,
+                                  &hashmap_one_shot_hash,
+                                  &hashmap_equal_bytes);
+
+  int key = 1;
+  const char *value = "one-shot";
+  Hash hash = hashmap_one_shot_hash(&key, sizeof(key));
+  size_t idx = HASHMAP_HASH_H1(hash) % map.internal.capacity;
+
+  EXPECT_FALSE(hashmap_put(&map, key, value));
+  EXPECT_EQ(*(map.internal.control + idx), HASHMAP_HASH_H2(hash));
+  EXPECT_STREQ(*hashmap_get(&map, key), value);
+
+  hashmap_free(&map);
+}
+
 class TestHashersU8
     : public ::testing::TestWithParam<std::tuple<uint8_t, Hash>> {};
 
@@ -135,6 +159,24 @@ TEST_P(TestHashersU8, FNV1aHashU8) {
 
   Hash hash = hashmap_calculate_hash(&map.internal, &key);
   EXPECT_EQ(expectedResult, hash);
+
+  hashmap_free(&map);
+}
+
+TEST(TestHashMap, FNV1aOneShot) {
+  HashMap(uint8_t, const char *) map;
+
+  hashmap_init_with_algo_and_hash(&map, Fnv1a, nullptr,
+                                  &hashmap_fnv1a_hash_u8,
+                                  &hashmap_equal_bytes);
+
+  uint8_t key = 1;
+  Hash expected = 0xaf63bc4c8601b62c;
+  EXPECT_FALSE(hashmap_put(&map, key, "one-shot"));
+  EXPECT_EQ(*(map.internal.control +
+              (HASHMAP_HASH_H1(expected) % map.internal.capacity)),
+            HASHMAP_HASH_H2(expected));
+  EXPECT_STREQ(*hashmap_get(&map, key), "one-shot");
 
   hashmap_free(&map);
 }

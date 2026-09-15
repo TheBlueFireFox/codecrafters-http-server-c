@@ -108,6 +108,7 @@ extern const HashMapAlgorithm SipHash;
 
 typedef void (*HashMapHashFn)(HashMapHashBuilder *builder, const void *key,
                               size_t key_size);
+typedef Hash (*HashMapOneShotHashFn)(const void *key, size_t key_size);
 
 typedef bool (*HashMapEqFn)(const void *a, const void *b, size_t key_size);
 
@@ -128,6 +129,13 @@ typedef bool (*HashMapEqFn)(const void *a, const void *b, size_t key_size);
 
 HASHMAP_FULL_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)
 #undef HASHMAP_DEFINE_HASH_UPDATE
+
+#define HASHMAP_DEFINE_FNV1A_HASH(type, nice_suffix, suffix)                  \
+  Hash hashmap_fnv1a_hash_##nice_suffix(const void *key, size_t key_size);
+
+HASHMAP_FULL_INTEGER_TYPES(HASHMAP_DEFINE_FNV1A_HASH)
+
+#undef HASHMAP_DEFINE_FNV1A_HASH
 
 void hashmap_hash_blob(HashMapHashBuilder *builder, const void *key,
                        size_t key_size);
