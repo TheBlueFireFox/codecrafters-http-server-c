@@ -96,8 +96,7 @@ static void hashmap_init_internal_impl(HashMapInternal *map,
   map->len = 0;
   map->capacity = HASHMAP_DEFAULT_CAPACITY;
   map->mask_capacity = HASHMAP_DEFAULT_CAPACITY - 1;
-  map->load_factor_percent = HASHMAP_LOAD_FACTOR_PERCENT;
-  map->grow_at = (map->capacity * map->load_factor_percent) / 100;
+  hashmap_set_load_factor_percent_impl(map, HASHMAP_LOAD_FACTOR_PERCENT);
   map->eq_fn = eq_fn;
   map->key_size = key_size;
   map->key_offset = config.key_offset;
@@ -249,16 +248,6 @@ static void hashmap_control_set(HashMapInternal *map, size_t idx, uint8_t h2,
     map->control[idx + map->capacity] = h2;
     map->distance[idx + map->capacity] = distance;
   }
-}
-
-static uint8_t hashmap_group_find_distance_stop(const uint8_t *dist,
-                                                uint8_t current_distance) {
-  for (uint8_t i = 0; i < HASHMAP_PROBE_GROUP_SIZE; i += 1) {
-    if (*(dist + i) < current_distance + i) {
-      return i;
-    }
-  }
-  return HASHMAP_PROBE_GROUP_SIZE;
 }
 
 static bool hashmap_put_inner_displaced(HashMapInternal *map, const void *key,
@@ -501,7 +490,8 @@ static void hashmap_resize(HashMapInternal *map, size_t new_capacity) {
 
   map->capacity = new_capacity;
   map->mask_capacity = new_capacity - 1;
-  map->grow_at = (map->capacity * map->load_factor_percent) / 100;
+
+  hashmap_set_load_factor_percent_impl(map, map->load_factor_percent);
 
   for (size_t i = 0; i < old_capacity; i += 1) {
     HashMapSlot slot = hashmap_get_slot_inner(map, i, old_data);
@@ -520,7 +510,7 @@ static void hashmap_resize(HashMapInternal *map, size_t new_capacity) {
   struct timespec resize_end;
   (void)clock_gettime(CLOCK_MONOTONIC, &resize_end);
   int64_t elapsed_ns =
-      (int64_t)(resize_end.tv_sec - resize_start.tv_sec) * 1000000000LL +
+      ((int64_t)(resize_end.tv_sec - resize_start.tv_sec) * 1000000000LL) +
       resize_end.tv_nsec - resize_start.tv_nsec;
   map->stats.resize_only_ns += (size_t)elapsed_ns;
 #endif
@@ -599,7 +589,6 @@ static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
   Hash h1 = HASHMAP_HASH_H1(hash);
   uint8_t h2 = HASHMAP_HASH_H2(hash);
   *idx = hashmap_mod_capacity(map, h1);
-  uint8_t distance = 0;
 
   while (true) {
 
@@ -608,19 +597,7 @@ static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
 
     // Process a group at a time
     // Find first empty of this group
-    uint8_t first_empty = hashmap_group_find_first_empty(ctrl);
-
-    uint8_t first_robin_hood_stop =
-        hashmap_group_find_distance_stop(map->distance + *idx, distance);
-
-    /*
-     * We cannot examine anything past either:
-     *
-     *   1. the first EMPTY slot
-     *   2. the first Robin Hood termination slot
-     */
-    uint8_t stop = first_empty < first_robin_hood_stop ? first_empty
-                                                       : first_robin_hood_stop;
+    uint8_t stop = hashmap_group_find_first_empty(ctrl);
 
     uint64_t matches = hashmap_group_match(ctrl, h2);
     while (matches > 0) {
@@ -657,7 +634,6 @@ static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
     }
 
     *idx = hashmap_mod_capacity(map, *idx + HASHMAP_PROBE_GROUP_SIZE);
-    distance += HASHMAP_PROBE_GROUP_SIZE;
   }
 }
 

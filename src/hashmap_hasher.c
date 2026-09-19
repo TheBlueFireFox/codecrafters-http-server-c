@@ -296,7 +296,11 @@ bool hashmap_equal_string(const void *a, const void *b, size_t key_size) {
   bool hashmap_equal_##nice_suffix(const void *a, const void *b,               \
                                    size_t key_size) {                          \
     ASSERT(key_size == sizeof(type));                                          \
-    return *(const type *)a == *(const type *)b;                               \
+    type ia;                                                                   \
+    type ib;                                                                   \
+    memcpy(&ia, a, sizeof(type));                                              \
+    memcpy(&ib, b, sizeof(type));                                              \
+    return ia == ib;                                                           \
   }
 
 HASHMAP_FULL_INTEGER_TYPES(HASHMAP_DEFINE_EQUAL)
