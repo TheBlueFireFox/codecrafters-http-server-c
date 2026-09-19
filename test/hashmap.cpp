@@ -37,22 +37,13 @@ Hash hashmap_first_byte_finalize(void *ctx) {
 }
 
 const HashMapAlgorithm FirstByteAlgo = {
+    .config_size = 0,
+    .context_size = sizeof(CountingContext),
     .init_algorithm = nullptr,
     .init = &hashmap_first_byte_init,
     .update = &hashmap_first_byte_update,
     .finalize = &hashmap_first_byte_finalize,
 };
-
-Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
-  HashMapHashBuilder ctx = {
-      .ctx_data = {0},
-      .algo = &map->hash_algo,
-  };
-  map->hash_algo.init(ctx.ctx_data, map->algo_config);
-  map->hash_fn(&ctx, key, map->key_size);
-  return map->hash_algo.finalize(ctx.ctx_data);
-}
-
 } // namespace
 
 struct AlignmentCase {
@@ -206,7 +197,7 @@ TEST(TestHashMap, initFNV1a) {
   EXPECT_EQ(map.internal.key_size, sizeof(int));
   EXPECT_EQ(map.internal.value_size, sizeof(const char *));
 
-  EXPECT_EQ(map.internal.hash_fn, &hashmap_hash_i32);
+  EXPECT_EQ(map.internal.hasher.hash_fn, &hashmap_hash_i32);
   EXPECT_EQ(map.internal.eq_fn, &hashmap_equal_bytes);
   EXPECT_NE(map.internal.data, nullptr);
 
@@ -247,7 +238,8 @@ TEST(TestHashMap, free) {
 
   hashmap_free(&map);
 
-  EXPECT_EQ(map.internal.hash_fn, nullptr);
+  EXPECT_EQ(map.internal.hasher.one_shot, nullptr);
+  EXPECT_EQ(map.internal.hasher.hash_fn, nullptr);
   EXPECT_EQ(map.internal.eq_fn, nullptr);
   EXPECT_EQ(map.internal.data, nullptr);
 }

@@ -98,6 +98,7 @@ if(LOCAL)
 
     add_executable(http-server-benchmark
         benchmark/hashmap_bench.cpp
+        benchmark/hashmap_bench_bridge.c
     )
 
     target_link_libraries(http-server-benchmark

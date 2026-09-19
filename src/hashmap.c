@@ -62,24 +62,29 @@ HashMapSlot hashmap_get_slot_impl(HashMapInternal *map, size_t idx) {
   return hashmap_get_slot_inner(map, idx, map->data);
 }
 
-static Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
+Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
 #ifdef HASHMAP_ENABLE_STATS
   HASHMAP_STAT_INC(map, hash_calculations);
 #endif
+
+  if (map->hasher.one_shot != NULL) {
+    return map->hasher.one_shot(map->hasher.algo_config, key, map->key_size);
+  }
+
   HashMapHashBuilder ctx = {
-      .ctx_data = {0},
-      .algo = &map->hash_algo,
+      .ctx_data = map->hasher.algo_context,
+      .algo = &map->hasher.algo,
   };
-  map->hash_algo.init(ctx.ctx_data, map->algo_config);
-  map->hash_fn(&ctx, key, map->key_size);
-  return map->hash_algo.finalize(ctx.ctx_data);
+
+  map->hasher.algo.init(ctx.ctx_data, map->hasher.algo_config);
+  map->hasher.hash_fn(&ctx, key, map->key_size);
+  return map->hasher.algo.finalize(ctx.ctx_data);
 }
-
-void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
-                                 HashMapHashFn hash_fn, HashMapEqFn eq_fn,
-                                 size_t key_size, size_t key_alignment,
-                                 size_t value_size, size_t value_alignment) {
-
+static void hashmap_init_internal_impl(HashMapInternal *map,
+                                       HashMapHasher hasher, HashMapEqFn eq_fn,
+                                       size_t key_size, size_t key_alignment,
+                                       size_t value_size,
+                                       size_t value_alignment) {
   struct HashMapSlotQuery query = {
       .key_size = key_size,
       .key_alignment = key_alignment,
@@ -93,14 +98,14 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   map->mask_capacity = HASHMAP_DEFAULT_CAPACITY - 1;
   map->load_factor_percent = HASHMAP_LOAD_FACTOR_PERCENT;
   map->grow_at = (map->capacity * map->load_factor_percent) / 100;
-  map->hash_fn = hash_fn;
   map->eq_fn = eq_fn;
   map->key_size = key_size;
   map->key_offset = config.key_offset;
   map->value_size = value_size;
   map->value_offset = config.value_offset;
   map->slot_size = config.slot_size;
-  map->hash_algo = algo;
+  map->hasher = hasher;
+
 #ifdef HASHMAP_ENABLE_STATS
   map->stats = (HashMapStats){0};
 #endif
@@ -111,24 +116,46 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
   map->distance = hashmap_setup_region(HASHMAP_DEFAULT_CAPACITY, 0);
   HASHMAP_STAT_INC(map, allocations);
   map->data = calloc(HASHMAP_DEFAULT_CAPACITY, map->slot_size);
+
   HASHMAP_STAT_INC(map, allocations);
-  map->algo_config = calloc(128, 1);
+  map->hasher.algo_context = calloc(map->hasher.algo.context_size, 1);
+
   HASHMAP_STAT_INC(map, allocations);
 
-  ASSERT(map->hash_fn != NULL);
+  ASSERT(map->hasher.algo_config != NULL);
+
   ASSERT(map->eq_fn != NULL);
   ASSERT(map->data != NULL);
 
-  if (map->hash_algo.init_algorithm != NULL) {
-    map->hash_algo.init_algorithm(map->algo_config);
+  if (map->hasher.algo.init_algorithm != NULL) {
+    HASHMAP_STAT_INC(map, allocations);
+    map->hasher.algo_config = calloc(map->hasher.algo.config_size, 1);
+    ASSERT(map->hasher.algo_context != NULL);
+
+    map->hasher.algo.init_algorithm(map->hasher.algo_context);
   }
 }
 
-void hashmap_init_impl(HashMapInternal *map, HashMapHashFn hash_fn,
+void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
+                                 HashMapHashFn hash_fn, HashMapEqFn eq_fn,
+                                 size_t key_size, size_t key_alignment,
+                                 size_t value_size, size_t value_alignment) {
+  HashMapHasher hasher = {
+      .algo = algo,
+      .algo_config = NULL,
+      .algo_context = NULL,
+      .hash_fn = hash_fn,
+      .one_shot = NULL,
+  };
+  hashmap_init_internal_impl(map, hasher, eq_fn, key_size, key_alignment,
+                             value_size, value_alignment);
+}
+
+void hashmap_init_impl(HashMapInternal *map, HashMapHasher hasher,
                        HashMapEqFn eq_fn, size_t key_size, size_t key_alignment,
                        size_t value_size, size_t value_alignment) {
-  hashmap_init_with_algo_impl(map, SipHash, hash_fn, eq_fn, key_size,
-                              key_alignment, value_size, value_alignment);
+  hashmap_init_internal_impl(map, hasher, eq_fn, key_size, key_alignment,
+                             value_size, value_alignment);
 }
 
 void hashmap_free_impl(HashMapInternal *map) {
@@ -142,18 +169,20 @@ void hashmap_free_impl(HashMapInternal *map) {
   map->value_size = 0;
   map->value_offset = 0;
   map->slot_size = 0;
-  map->hash_fn = NULL;
+  map->hasher.hash_fn = NULL;
+  map->hasher.one_shot = NULL;
   map->eq_fn = NULL;
 
   free(map->control);
   free(map->distance);
   free(map->data);
-  free(map->algo_config);
+  free(map->hasher.algo_config);
+  free(map->hasher.algo_context);
 
+  map->hasher.algo_config = NULL;
   map->control = NULL;
   map->distance = NULL;
   map->data = NULL;
-  map->algo_config = NULL;
 }
 
 void hashmap_set_load_factor_percent_impl(HashMapInternal *map,

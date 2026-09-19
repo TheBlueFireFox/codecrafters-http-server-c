@@ -15,9 +15,7 @@
   X(I32I32, int32_t, int32_t)                                                  \
   X(I64I64, int64_t, int64_t)                                                  \
   X(IntInt, int, int)                                                          \
-  X(IntString, int, const char *)                                              \
-  X(StringU64, const char *, uint64_t)                                         \
-  X(StringInt, const char *, int)
+  X(IntString, int, const char *)
 
 /*
  * Generate named map types.
@@ -42,6 +40,12 @@ extern "C" {
 HASHMAP_TEST_TYPES(HASHMAP_TEST_DECLARE_INIT)
 
 #undef HASHMAP_TEST_DECLARE_INIT
+
+typedef HashMap(const char *, uint64_t) StringU64HashMapTest;
+void hashmap_test_init_StringU64(StringU64HashMapTest *map);
+
+typedef HashMap(const char *, int) StringIntHashMapTest;
+void hashmap_test_init_StringInt(StringIntHashMapTest *map);
 
 #ifdef __cplusplus
 }

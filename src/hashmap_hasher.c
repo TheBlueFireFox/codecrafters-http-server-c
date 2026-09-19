@@ -9,6 +9,8 @@
 typedef uint8_t SipHashKey[16];
 
 const HashMapAlgorithm SipHash = {
+    .config_size = sizeof(SiphasConfig),
+    .context_size = sizeof(SiphashContext),
     .init_algorithm = &hashmap_siphash_init_algo,
     .init = &hashmap_siphash_init,
     .update = &hashmap_siphash_update,
@@ -180,18 +182,21 @@ Hash hashmap_siphash_finalize(void *ctx) {
   .update_##suffix = &hashmap_fnv1a_update_##suffix,
 
 const HashMapAlgorithm Fnv1a = {
+    .config_size = 0,
+    .context_size = sizeof(Fnv1aContext),
     .init_algorithm = NULL,
     .init = &hashmap_fnv1a_init,
     .update = &hashmap_fnv1a_update,
     .finalize = &hashmap_fnv1a_finalize,
-    HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE)};
+    HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_HASH_UPDATE) //
+};
 
 #undef HASHMAP_DEFINE_HASH_UPDATE
 
 void hashmap_fnv1a_init(void *ctx, const void *config) {
   (void)config;
   Fnv1aContext *ctx_internal = ctx;
-  ctx_internal->state = 0xcbf29ce484222325;
+  ctx_internal->state = HASHMAP_FNV1A_INITIAL_STATE;
 }
 
 void hashmap_fnv1a_update(void *ctx, const void *data, size_t size) {
@@ -203,6 +208,11 @@ void hashmap_fnv1a_update(void *ctx, const void *data, size_t size) {
     hash *= 0x00000100000001b3;
   }
   ctx_internal->state = hash;
+}
+
+Hash hashmap_fnv1a_finalize(void *ctx) {
+  Fnv1aContext *ctx_internal = ctx;
+  return ctx_internal->state;
 }
 
 #define HASHMAP_DEFINE_FNV1A_UPDATE(type, nice_suffix, suffix)                 \
@@ -221,10 +231,24 @@ void hashmap_fnv1a_update(void *ctx, const void *data, size_t size) {
 HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_FNV1A_UPDATE)
 #undef HASHMAP_DEFINE_FNV1A_UPDATE
 
-Hash hashmap_fnv1a_finalize(void *ctx) {
-  Fnv1aContext *ctx_internal = ctx;
-  return ctx_internal->state;
-}
+#define HASHMAP_DEFINE_FNV1A_ONE_SHOT(type, nice_suffix, suffix)               \
+  Hash hashmap_fnv1a_one_shot_##suffix(void *config, const void *key,          \
+                                       size_t key_size) {                      \
+    (void)config;                                                              \
+    ASSERT(key_size == sizeof(type));                                          \
+    type ikey;                                                                 \
+    memcpy(&ikey, key, sizeof(type));                                          \
+                                                                               \
+    Hash state = HASHMAP_FNV1A_INITIAL_STATE;                                  \
+    for (size_t i = 0; i < sizeof(type); ++i) {                                \
+      state ^= (uint8_t)(ikey >> (i * 8));                                     \
+      state *= 0x00000100000001b3;                                             \
+    }                                                                          \
+    return state;                                                              \
+  }
+
+HASHMAP_INTEGER_TYPES(HASHMAP_DEFINE_FNV1A_ONE_SHOT)
+#undef HASHMAP_DEFINE_FNV1A_UPDATE
 
 #define HASHMAP_DEFINE_HASH_UPDATE(type, nice_suffix, suffix)                  \
   void hashmap_hash_##nice_suffix(HashMapHashBuilder *builder,                 \

@@ -77,10 +77,8 @@ struct HashMapInternal {
   size_t mask_capacity;
   size_t grow_at;
   size_t load_factor_percent;
-  HashMapAlgorithm hash_algo;
-  HashMapHashFn hash_fn;
+  HashMapHasher hasher;
   HashMapEqFn eq_fn;
-  uint8_t *algo_config;
   size_t key_size;
   size_t key_offset;
   size_t value_size;
@@ -155,13 +153,13 @@ void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
       hashmap_alignment_key(map), hashmap_value_size(map),                     \
       hashmap_alignment_value(map))
 
-void hashmap_init_impl(HashMapInternal *map, HashMapHashFn hash_fn,
+void hashmap_init_impl(HashMapInternal *map, HashMapHasher hasher,
                        HashMapEqFn eq_fn, size_t key_size, size_t key_alignment,
                        size_t value_size, size_t value_alignment);
 
 #define hashmap_init(map)                                                      \
   hashmap_init_impl((&(map)->internal),                                        \
-                    (hashmap_hash_fn_for_key(hashmap_key(map))),               \
+                    HASHMAP_HASHER_FOR(hashmap_key(map), fnv1a, Fnv1a),        \
                     (hashmap_eq_fn_for_key(hashmap_key(map))),                 \
                     hashmap_key_size(map), hashmap_alignment_key(map),         \
                     hashmap_value_size(map), hashmap_alignment_value(map))
@@ -237,6 +235,8 @@ void hashmap_set_load_factor_percent_impl(HashMapInternal *map,
 
 #define hashmap_set_load_factor_percent(map, load_factor_percent)              \
   hashmap_set_load_factor_percent_impl(&(map)->internal, load_factor_percent)
+
+Hash hashmap_calculate_hash(HashMapInternal *map, const void *key);
 
 #ifdef HASHMAP_ENABLE_STATS
 HashMapStats hashmap_stats_impl(const HashMapInternal *map);
