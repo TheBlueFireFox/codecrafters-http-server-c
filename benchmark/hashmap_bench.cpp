@@ -138,8 +138,12 @@ static void LoadFactors(benchmark::Benchmark *b) {
   b->Arg(50);
   b->Arg(55);
   b->Arg(60);
+  b->Arg(65);
   b->Arg(70);
+  b->Arg(75);
   b->Arg(80);
+  b->Arg(85);
+  b->Arg(90);
 }
 
 /*
@@ -492,128 +496,6 @@ template <typename Map> static void BM_Std_Erase(benchmark::State &state) {
                           static_cast<int64_t>(count));
 }
 
-/*
- * ==========================================================================
- * LOAD FACTOR
- * ==========================================================================
- *
- * Fixed backing capacity, varied population.
- *
- * This is intentionally just your hashmap. std::unordered_map uses a very
- * different bucket organization, so "70% full" doesn't describe equivalent
- * physical layouts.
- */
-
-static void BM_HashMap_LoadFactor_Hit(benchmark::State &state) {
-  const auto requested_load = static_cast<size_t>(state.range(0));
-
-  constexpr size_t requested_capacity = 1U << 16U;
-
-  U64Map map{};
-  init_map(&map);
-
-  hashmap_reserve(&map, requested_capacity);
-
-  const size_t capacity = hashmap_capacity(&map);
-  const size_t count = capacity * requested_load / 100;
-
-  const auto keys = make_present_keys(count);
-
-  for (const auto key : keys) {
-    hashmap_put(&map, key, key);
-  }
-
-  for (auto _ : state) {
-    (void)_;
-    for (const auto key : keys) {
-      auto *value = hashmap_get(&map, key);
-
-      benchmark::DoNotOptimize(value);
-
-      if (value != nullptr) {
-        benchmark::DoNotOptimize(*value);
-      }
-    }
-  }
-
-  state.counters["load"] =
-      static_cast<double>(count) / static_cast<double>(capacity);
-
-  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
-                          static_cast<int64_t>(count));
-
-  hashmap_free(&map);
-}
-
-static void BM_HashMap_LoadFactor_Miss(benchmark::State &state) {
-  const auto requested_load = static_cast<size_t>(state.range(0));
-
-  constexpr size_t requested_capacity = 1U << 16U;
-
-  U64Map map{};
-  init_map(&map);
-
-  hashmap_reserve(&map, requested_capacity);
-
-  const size_t capacity = hashmap_capacity(&map);
-  const size_t count = capacity * requested_load / 100;
-
-  const auto present = make_present_keys(count);
-  const auto missing = make_missing_keys(count);
-
-  for (const auto key : present) {
-    hashmap_put(&map, key, key);
-  }
-
-  for (auto _ : state) {
-    (void)_;
-    for (const auto key : missing) {
-      auto *value = hashmap_get(&map, key);
-
-      benchmark::DoNotOptimize(value);
-    }
-  }
-
-  state.counters["load"] =
-      static_cast<double>(count) / static_cast<double>(capacity);
-
-  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
-                          static_cast<int64_t>(count));
-
-  hashmap_free(&map);
-}
-
-static void BM_HashMap_ConfiguredLoadFactor_Insert(benchmark::State &state) {
-  const auto load_factor = static_cast<size_t>(state.range(0));
-  const auto count = static_cast<size_t>(1U << 14U);
-  const auto keys = make_present_keys(count);
-
-  for (auto _ : state) {
-    (void)_;
-    state.PauseTiming();
-
-    U64Map map{};
-    init_map(&map);
-    hashmap_set_load_factor_percent(&map, load_factor);
-
-    state.ResumeTiming();
-
-    for (const auto key : keys) {
-      hashmap_put(&map, key, key);
-    }
-
-    benchmark::ClobberMemory();
-
-    state.PauseTiming();
-    hashmap_free(&map);
-    state.ResumeTiming();
-  }
-
-  state.counters["load_factor"] = static_cast<double>(load_factor);
-  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
-                          static_cast<int64_t>(count));
-}
-
 #ifdef HASHMAP_ENABLE_STATS
 
 static void accumulate_stats(HashMapStats *totals, const HashMapStats &stats) {
@@ -676,6 +558,173 @@ static void BM_HashMap_Stats(benchmark::State &state,
       static_cast<double>(totals.groups_scanned_during_reinsertion) /
       item_count;
 }
+#endif
+
+/*
+ * ==========================================================================
+ * LOAD FACTOR
+ * ==========================================================================
+ *
+ * Fixed backing capacity, varied population.
+ *
+ * This is intentionally just your hashmap. std::unordered_map uses a very
+ * different bucket organization, so "70% full" doesn't describe equivalent
+ * physical layouts.
+ */
+
+static void BM_HashMap_LoadFactor_Hit(benchmark::State &state) {
+  const auto requested_load = static_cast<size_t>(state.range(0));
+
+  constexpr size_t requested_capacity = 1U << 16U;
+
+  U64Map map{};
+  init_map(&map);
+  hashmap_reserve(&map, requested_capacity);
+
+  size_t capacity = hashmap_capacity(&map);
+  const size_t count = capacity * requested_load / 100;
+
+#ifdef HASHMAP_ENABLE_STATS
+  HashMapStats totals{};
+#endif
+
+  const auto keys = make_present_keys(count);
+
+  for (const auto key : keys) {
+    hashmap_put(&map, key, key);
+  }
+
+  for (auto _ : state) {
+    (void)_;
+    for (const auto key : keys) {
+      auto *value = hashmap_get(&map, key);
+
+      benchmark::DoNotOptimize(value);
+
+      if (value != nullptr) {
+        benchmark::DoNotOptimize(*value);
+      }
+    }
+
+#ifdef HASHMAP_ENABLE_STATS
+    state.PauseTiming();
+    const HashMapStats stats = hashmap_stats(&map);
+    accumulate_stats(&totals, stats);
+    state.ResumeTiming();
+#endif
+  }
+
+  capacity = hashmap_capacity(&map);
+  state.counters["requesed_load"] = static_cast<double>(requested_capacity);
+  state.counters["capacity"] = static_cast<double>(capacity);
+  state.counters["size"] = static_cast<double>(count);
+  state.counters["actual_load"] =
+      static_cast<double>(count) / static_cast<double>(capacity);
+
+#ifdef HASHMAP_ENABLE_STATS
+  BM_HashMap_Stats(state, totals,
+                   static_cast<double>(state.iterations()) *
+                       static_cast<double>(count));
+#endif
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
+
+  hashmap_free(&map);
+}
+
+static void BM_HashMap_LoadFactor_Miss(benchmark::State &state) {
+  const auto requested_load = static_cast<size_t>(state.range(0));
+
+  constexpr size_t requested_capacity = 1U << 16U;
+
+  U64Map map{};
+  init_map(&map);
+
+#ifdef HASHMAP_ENABLE_STATS
+  HashMapStats totals{};
+#endif
+
+  hashmap_reserve(&map, requested_capacity);
+
+  size_t capacity = hashmap_capacity(&map);
+  const size_t count = capacity * requested_load / 100;
+
+  const auto present = make_present_keys(count);
+  const auto missing = make_missing_keys(count);
+
+  for (const auto key : present) {
+    hashmap_put(&map, key, key);
+  }
+
+  for (auto _ : state) {
+    (void)_;
+    for (const auto key : missing) {
+      auto *value = hashmap_get(&map, key);
+
+      benchmark::DoNotOptimize(value);
+    }
+
+#ifdef HASHMAP_ENABLE_STATS
+    state.PauseTiming();
+    const HashMapStats stats = hashmap_stats(&map);
+    accumulate_stats(&totals, stats);
+    state.ResumeTiming();
+#endif
+  }
+
+  capacity = hashmap_capacity(&map);
+  state.counters["requesed_load"] = static_cast<double>(requested_capacity);
+  state.counters["capacity"] = static_cast<double>(capacity);
+  state.counters["size"] = static_cast<double>(count);
+  state.counters["actual_load"] =
+      static_cast<double>(count) / static_cast<double>(capacity);
+
+#ifdef HASHMAP_ENABLE_STATS
+  BM_HashMap_Stats(state, totals,
+                   static_cast<double>(state.iterations()) *
+                       static_cast<double>(count));
+#endif
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
+
+  hashmap_free(&map);
+}
+
+static void BM_HashMap_ConfiguredLoadFactor_Insert(benchmark::State &state) {
+  const auto load_factor = static_cast<size_t>(state.range(0));
+  const auto count = static_cast<size_t>(1U << 14U);
+  const auto keys = make_present_keys(count);
+
+  for (auto _ : state) {
+    (void)_;
+    state.PauseTiming();
+
+    U64Map map{};
+    init_map(&map);
+    hashmap_set_load_factor_percent(&map, load_factor);
+
+    state.ResumeTiming();
+
+    for (const auto key : keys) {
+      hashmap_put(&map, key, key);
+    }
+
+    benchmark::ClobberMemory();
+
+    state.PauseTiming();
+    hashmap_free(&map);
+    state.ResumeTiming();
+  }
+
+  state.counters["load_factor"] = static_cast<double>(load_factor);
+
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(count));
+}
+
+#ifdef HASHMAP_ENABLE_STATS
 
 static void
 BM_HashMap_ConfiguredLoadFactor_Insert_Stats(benchmark::State &state) {
@@ -813,7 +862,8 @@ static void BM_HashMap_Stats_inner(benchmark::State &state, auto init_map_fn) {
     state.ResumeTiming();
   }
   BM_HashMap_Stats(state, totals,
-                   static_cast<double>(state.iterations()) * count * 3.0);
+                   static_cast<double>(state.iterations()) *
+                       static_cast<double>(count) * 3.0);
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
                           static_cast<int64_t>(count));
 }

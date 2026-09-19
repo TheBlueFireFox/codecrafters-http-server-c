@@ -65,6 +65,7 @@ struct HashMapStats {
   size_t migrated_elements;
   size_t entries_reinserted;
   size_t allocations;
+  size_t groups_scanned;
   size_t groups_scanned_during_reinsertion;
 };
 
