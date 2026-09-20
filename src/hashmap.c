@@ -387,7 +387,7 @@ static bool hashmap_put_inner_displaced(HashMapInternal *map, const void *key,
   }
 }
 
-static bool hashmap_put_inner_direct(HashMapInternal *map, Hash hash,
+static inline bool hashmap_put_inner(HashMapInternal *map, Hash hash,
                                      const void *key, const void *value,
                                      bool reinserting) {
   Hash h1 = HASHMAP_HASH_H1(hash);
@@ -445,11 +445,6 @@ static bool hashmap_put_inner_direct(HashMapInternal *map, Hash hash,
     idx = hashmap_mod_capacity(map, idx + 1);
     distance += 1;
   }
-}
-
-static bool hashmap_put_inner(HashMapInternal *map, Hash hash, const void *key,
-                              const void *value, bool reinserting) {
-  return hashmap_put_inner_direct(map, hash, key, value, reinserting);
 }
 
 // PUT
