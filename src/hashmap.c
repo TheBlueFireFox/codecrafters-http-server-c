@@ -33,8 +33,8 @@ HashMapSlotConfigurations hashmap_slot_config(struct HashMapSlotQuery *query) {
   };
 }
 
-static HashMapSlot hashmap_get_slot_inner(HashMapInternal *map, size_t idx,
-                                          uint8_t *data) {
+static inline HashMapSlot hashmap_get_slot_inner(HashMapInternal *map,
+                                                 size_t idx, uint8_t *data) {
   // struct HashMapSlot {
   //   HashMapSlotHeader *header;
   //   const void *key;
@@ -58,8 +58,13 @@ static uint8_t *hashmap_setup_region(size_t new_capacity, uint8_t value) {
   return region;
 }
 
-HashMapSlot hashmap_get_slot_impl(HashMapInternal *map, size_t idx) {
+static inline HashMapSlot hashmap_get_slot_impl(HashMapInternal *map,
+                                                size_t idx) {
   return hashmap_get_slot_inner(map, idx, map->data);
+}
+
+HashMapSlot hashmap_get_slot_externaly_impl(HashMapInternal *map, size_t idx) {
+  return hashmap_get_slot_impl(map, idx);
 }
 
 Hash hashmap_calculate_hash(HashMapInternal *map, const void *key) {
@@ -204,31 +209,27 @@ void hashmap_clear_impl(HashMapInternal *map) {
          map->capacity + HASHMAP_PROBE_GROUP_SIZE);
 }
 
-static uint64_t hashmap_mod_capacity(HashMapInternal *map, uint64_t value) {
+static inline uint64_t hashmap_mod_capacity(HashMapInternal *map,
+                                            uint64_t value) {
   return value & map->mask_capacity;
 }
 
-static uint64_t hashmap_group_empties(uint8_t *ctrl) {
+static inline uint64_t hashmap_group_empties(uint64_t group) {
   // search 2A
   // 2A 91 17 2A 44 55 2A 12
   // 80 00 00 80 00 00 80 00
-  uint64_t group;
-  memcpy(&group, ctrl, sizeof(uint64_t));
   return group & HASHMAP_MATCHES_MAP;
 }
 
-static uint8_t hashmap_group_find_first_empty(uint8_t *ctrl) {
-  uint64_t group = hashmap_group_empties(ctrl);
+static inline uint8_t hashmap_group_find_first_empty(uint64_t group) {
+  group = hashmap_group_empties(group);
   return group > 0 ? (__builtin_ctzll(group) / 8) : 8;
 }
 
-static uint64_t hashmap_group_match(uint8_t *ctrl, uint8_t fingerprint) {
+static inline uint64_t hashmap_group_match(uint64_t group, uint8_t fingerprint) {
   // search 2A
   // 2A 91 17 2A 44 55 2A 12
   // 80 00 00 80 00 00 80 00
-  uint64_t group;
-  memcpy(&group, ctrl, sizeof(uint64_t));
-
   // will expand the fingerprint to repeate over all bytes
   uint64_t needle = (uint64_t)fingerprint * HASHMAP_NEEDLE_MAP;
   uint64_t x = group ^ needle; // every match will be 0x00
@@ -592,9 +593,12 @@ static bool hashmap_lookup(HashMapInternal *map, const void *key, size_t *idx) {
 
     // Process a group at a time
     // Find first empty of this group
-    uint8_t stop = hashmap_group_find_first_empty(ctrl);
+    uint64_t group;
+    memcpy(&group, ctrl, sizeof(uint64_t));
 
-    uint64_t matches = hashmap_group_match(ctrl, h2);
+    uint8_t stop = hashmap_group_find_first_empty(group);
+
+    uint64_t matches = hashmap_group_match(group, h2);
     while (matches > 0) {
       // returns the
       uint8_t bit = __builtin_ctzll(matches);

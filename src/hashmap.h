@@ -202,10 +202,10 @@ size_t hashmap_len_impl(const HashMapInternal *map);
 
 #define hashmap_len(map) hashmap_len_impl(&(map)->internal)
 
-HashMapSlot hashmap_get_slot_impl(HashMapInternal *map, size_t idx);
+HashMapSlot hashmap_get_slot_externaly_impl(HashMapInternal *map, size_t idx);
 
 #define hashmap_get_slot(map, idx)                                             \
-  hashmap_get_slot_impl(&(map)->internal, (idx))
+  hashmap_get_slot_externaly_impl(&(map)->internal, (idx))
 
 bool hashmap_is_empty_impl(HashMapInternal *map);
 
