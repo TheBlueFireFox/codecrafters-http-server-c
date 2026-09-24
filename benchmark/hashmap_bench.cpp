@@ -119,6 +119,27 @@ static size_t capacity_for_elements(size_t elements) {
          1;
 }
 
+enum class BenchmarkHashAlgorithm : int {
+  Fnv1a = 0,
+  SipHash = 1,
+};
+
+using MapInitializer = void (*)(U64Map *);
+
+static MapInitializer map_initializer_for_state(benchmark::State &state) {
+  switch (static_cast<BenchmarkHashAlgorithm>(state.range(1))) {
+  case BenchmarkHashAlgorithm::Fnv1a:
+    state.SetLabel("Fnv1a");
+    return &init_map_fnv1a;
+  case BenchmarkHashAlgorithm::SipHash:
+    state.SetLabel("SipHash");
+    return &init_map_siphash;
+  }
+
+  state.SkipWithError("unknown hash algorithm");
+  return nullptr;
+}
+
 /*
  * Standard benchmark sizes:
  *
@@ -128,22 +149,23 @@ static size_t capacity_for_elements(size_t elements) {
  */
 
 static void MapSizes(benchmark::Benchmark *b) {
+  for(const auto size : {1U << 10U, 1U << 14U, 1U << 18U}) {
+    b->Args({size, static_cast<int>(BenchmarkHashAlgorithm::Fnv1a)});
+    b->Args({size, static_cast<int>(BenchmarkHashAlgorithm::SipHash)});
+  }
+}
+
+static void StdMapSizes(benchmark::Benchmark *b) {
   b->Arg(1U << 10U);
   b->Arg(1U << 14U);
   b->Arg(1U << 18U);
 }
 
 static void LoadFactors(benchmark::Benchmark *b) {
-  b->Arg(25);
-  b->Arg(50);
-  b->Arg(55);
-  b->Arg(60);
-  b->Arg(65);
-  b->Arg(70);
-  b->Arg(75);
-  b->Arg(80);
-  b->Arg(85);
-  b->Arg(90);
+  for (const auto load_factor : {25, 50, 55, 60, 65, 70, 75, 80, 85, 90}) {
+    b->Args({load_factor, static_cast<int>(BenchmarkHashAlgorithm::Fnv1a)});
+    b->Args({load_factor, static_cast<int>(BenchmarkHashAlgorithm::SipHash)});
+  }
 }
 
 /*
@@ -169,7 +191,7 @@ static void BM_HashMap_InsertReserved(benchmark::State &state) {
     state.PauseTiming();
 
     U64Map map{};
-    init_map(&map);
+    map_initializer_for_state(state)(&map);
 
     hashmap_reserve(&map, capacity_for_elements(count));
 
@@ -208,7 +230,7 @@ static void BM_HashMap_InsertGrowing(benchmark::State &state) {
     state.PauseTiming();
 
     U64Map map{};
-    init_map(&map);
+    map_initializer_for_state(state)(&map);
 
     state.ResumeTiming();
 
@@ -238,7 +260,7 @@ static void BM_HashMap_LookupHit(benchmark::State &state) {
   const auto keys = make_present_keys(count);
 
   U64Map map{};
-  init_map(&map);
+  map_initializer_for_state(state)(&map);
 
   hashmap_reserve(&map, capacity_for_elements(count));
 
@@ -278,7 +300,7 @@ static void BM_HashMap_LookupMiss(benchmark::State &state) {
   const auto missing = make_missing_keys(count);
 
   U64Map map{};
-  init_map(&map);
+  map_initializer_for_state(state)(&map);
 
   hashmap_reserve(&map, capacity_for_elements(count));
 
@@ -319,7 +341,7 @@ static void BM_HashMap_Erase(benchmark::State &state) {
     state.PauseTiming();
 
     U64Map map{};
-    init_map(&map);
+    map_initializer_for_state(state)(&map);
 
     hashmap_reserve(&map, capacity_for_elements(count));
 
@@ -578,7 +600,7 @@ static void BM_HashMap_LoadFactor_Hit(benchmark::State &state) {
   constexpr size_t requested_capacity = 1U << 16U;
 
   U64Map map{};
-  init_map(&map);
+  map_initializer_for_state(state)(&map);
   hashmap_reserve(&map, requested_capacity);
 
   size_t capacity = hashmap_capacity(&map);
@@ -639,7 +661,7 @@ static void BM_HashMap_LoadFactor_Miss(benchmark::State &state) {
   constexpr size_t requested_capacity = 1U << 16U;
 
   U64Map map{};
-  init_map(&map);
+  map_initializer_for_state(state)(&map);
 
 #ifdef HASHMAP_ENABLE_STATS
   HashMapStats totals{};
@@ -702,7 +724,7 @@ static void BM_HashMap_ConfiguredLoadFactor_Insert(benchmark::State &state) {
     state.PauseTiming();
 
     U64Map map{};
-    init_map(&map);
+    map_initializer_for_state(state)(&map);
     hashmap_set_load_factor_percent(&map, load_factor);
 
     state.ResumeTiming();
@@ -739,7 +761,7 @@ BM_HashMap_ConfiguredLoadFactor_Insert_Stats(benchmark::State &state) {
     state.PauseTiming();
 
     U64Map map{};
-    init_map(&map);
+    map_initializer_for_state(state)(&map);
     hashmap_set_load_factor_percent(&map, load_factor);
 
     state.ResumeTiming();
@@ -780,7 +802,7 @@ static void BM_HashMap_Rehash(benchmark::State &state) {
     state.PauseTiming();
 
     U64Map map{};
-    init_map(&map);
+    map_initializer_for_state(state)(&map);
     hashmap_reserve(&map, capacity_for_elements(count));
 
     for (const auto key : keys) {
@@ -823,7 +845,8 @@ static void BM_HashMap_Rehash(benchmark::State &state) {
   state.SetItemsProcessed(static_cast<int64_t>(items));
 }
 
-static void BM_HashMap_Stats_inner(benchmark::State &state, auto init_map_fn) {
+static void BM_HashMap_Stats_inner(benchmark::State &state,
+                                   MapInitializer init_map_fn) {
   const auto count = static_cast<size_t>(state.range(0));
   const auto present = make_present_keys(count);
   const auto missing = make_missing_keys(count);
@@ -868,16 +891,11 @@ static void BM_HashMap_Stats_inner(benchmark::State &state, auto init_map_fn) {
                           static_cast<int64_t>(count));
 }
 static void BM_HashMap_StatsFnv1a(benchmark::State &state) {
-  BM_HashMap_Stats_inner(state, [](U64Map *map) {
-    hashmap_init_with_algo(map, Fnv1a, &hashmap_hash_u64, &hashmap_equal_bytes);
-  });
+  BM_HashMap_Stats_inner(state, &init_map_fnv1a);
 }
 
 static void BM_HashMap_StatsSipHash(benchmark::State &state) {
-  BM_HashMap_Stats_inner(state, [](U64Map *map) {
-    hashmap_init_with_algo(map, SipHash, &hashmap_hash_u64,
-                           &hashmap_equal_bytes);
-  });
+  BM_HashMap_Stats_inner(state, &init_map_siphash);
 }
 
 static void BM_HashMap_InsertAtOccupancy_Stats(benchmark::State &state) {
@@ -899,7 +917,7 @@ static void BM_HashMap_InsertAtOccupancy_Stats(benchmark::State &state) {
     state.PauseTiming();
 
     U64Map map{};
-    init_map(&map);
+    map_initializer_for_state(state)(&map);
 
     hashmap_set_load_factor_percent(&map, max_load_factor);
     hashmap_reserve(&map, capacity);
@@ -978,17 +996,17 @@ BENCHMARK(BM_HashMap_LookupHit)->Apply(MapSizes);
 BENCHMARK(BM_HashMap_LookupMiss)->Apply(MapSizes);
 BENCHMARK(BM_HashMap_Erase)->Apply(MapSizes);
 
-BENCHMARK_TEMPLATE(BM_Std_InsertReserved, StdFnvMap)->Apply(MapSizes);
-BENCHMARK_TEMPLATE(BM_Std_InsertGrowing, StdFnvMap)->Apply(MapSizes);
-BENCHMARK_TEMPLATE(BM_Std_LookupHit, StdFnvMap)->Apply(MapSizes);
-BENCHMARK_TEMPLATE(BM_Std_LookupMiss, StdFnvMap)->Apply(MapSizes);
-BENCHMARK_TEMPLATE(BM_Std_Erase, StdFnvMap)->Apply(MapSizes);
+BENCHMARK_TEMPLATE(BM_Std_InsertReserved, StdFnvMap)->Apply(StdMapSizes);
+BENCHMARK_TEMPLATE(BM_Std_InsertGrowing, StdFnvMap)->Apply(StdMapSizes);
+BENCHMARK_TEMPLATE(BM_Std_LookupHit, StdFnvMap)->Apply(StdMapSizes);
+BENCHMARK_TEMPLATE(BM_Std_LookupMiss, StdFnvMap)->Apply(StdMapSizes);
+BENCHMARK_TEMPLATE(BM_Std_Erase, StdFnvMap)->Apply(StdMapSizes);
 
-BENCHMARK_TEMPLATE(BM_Std_InsertReserved, StdDefaultMap)->Apply(MapSizes);
-BENCHMARK_TEMPLATE(BM_Std_InsertGrowing, StdDefaultMap)->Apply(MapSizes);
-BENCHMARK_TEMPLATE(BM_Std_LookupHit, StdDefaultMap)->Apply(MapSizes);
-BENCHMARK_TEMPLATE(BM_Std_LookupMiss, StdDefaultMap)->Apply(MapSizes);
-BENCHMARK_TEMPLATE(BM_Std_Erase, StdDefaultMap)->Apply(MapSizes);
+BENCHMARK_TEMPLATE(BM_Std_InsertReserved, StdDefaultMap)->Apply(StdMapSizes);
+BENCHMARK_TEMPLATE(BM_Std_InsertGrowing, StdDefaultMap)->Apply(StdMapSizes);
+BENCHMARK_TEMPLATE(BM_Std_LookupHit, StdDefaultMap)->Apply(StdMapSizes);
+BENCHMARK_TEMPLATE(BM_Std_LookupMiss, StdDefaultMap)->Apply(StdMapSizes);
+BENCHMARK_TEMPLATE(BM_Std_Erase, StdDefaultMap)->Apply(StdMapSizes);
 
 BENCHMARK(BM_HashMap_LoadFactor_Hit)->Apply(LoadFactors);
 BENCHMARK(BM_HashMap_LoadFactor_Miss)->Apply(LoadFactors);
@@ -997,7 +1015,7 @@ BENCHMARK(BM_HashMap_ConfiguredLoadFactor_Insert)->Apply(LoadFactors);
 #ifdef HASHMAP_ENABLE_STATS
 BENCHMARK(BM_HashMap_StatsFnv1a)->Arg(1U << 14U);
 BENCHMARK(BM_HashMap_StatsSipHash)->Arg(1U << 14U);
-BENCHMARK(BM_HashMap_Rehash)->Arg(1U << 10U)->Arg(1U << 14U)->Arg(1U << 18U);
+BENCHMARK(BM_HashMap_Rehash)->Apply(MapSizes);
 BENCHMARK(BM_HashMap_ConfiguredLoadFactor_Insert_Stats)->Apply(LoadFactors);
 BENCHMARK(BM_HashMap_InsertAtOccupancy_Stats)
     ->Apply(LoadFactors)

@@ -126,17 +126,16 @@ static void hashmap_init_internal_impl(HashMapInternal *map,
 
   HASHMAP_STAT_INC(map, allocations);
 
-  ASSERT(map->hasher.algo_config != NULL);
-
   ASSERT(map->eq_fn != NULL);
   ASSERT(map->data != NULL);
 
   if (map->hasher.algo.init_algorithm != NULL) {
     HASHMAP_STAT_INC(map, allocations);
     map->hasher.algo_config = calloc(map->hasher.algo.config_size, 1);
+    ASSERT(map->hasher.algo_config != NULL);
     ASSERT(map->hasher.algo_context != NULL);
 
-    map->hasher.algo.init_algorithm(map->hasher.algo_context);
+    map->hasher.algo.init_algorithm(map->hasher.algo_config);
   }
 }
 
