@@ -4,6 +4,6 @@
 
 #include "routes.h"
 
-int start_server(AppState *state, atomic_bool *is_running);
+int start_server(AppState* state, atomic_bool* is_running);
 
 #endif

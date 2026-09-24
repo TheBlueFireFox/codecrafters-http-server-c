@@ -8,83 +8,84 @@
 #include "vector.h"
 
 enum HttpVersion {
-  HTTP1_1,
+    HTTP1_1,
 };
 
 typedef enum HttpVersion HttpVersion;
 
-size_t write_version(uint8_t *const buf, HttpVersion status);
+size_t write_version(uint8_t* const buf, HttpVersion status);
 
 enum HttpStatus {
-  OK,
-  BAD_REQ,
-  CREATED,
-  NOT_FOUND,
+    OK,
+    BAD_REQ,
+    CREATED,
+    NOT_FOUND,
 };
 
 typedef enum HttpStatus HttpStatus;
 
-size_t write_status(uint8_t *const buf, HttpStatus status);
+size_t write_status(uint8_t* const buf, HttpStatus status);
 
 struct HttpHeader {
-  const char *key;
-  const char *value;
+    const char* key;
+    const char* value;
 };
 
 typedef struct HttpHeader HttpHeader;
 
 enum HttpContentEncoding {
-  GZIP,
-  NO_ENCODING,
+    GZIP,
+    NO_ENCODING,
 };
 
 typedef enum HttpContentEncoding HttpContentEncoding;
 
 struct HttpConnectionState {
-  bool active;
+    bool active;
 };
 
 typedef struct HttpConnectionState HttpConnectionState;
 
 struct HttpHeaders {
-  Vector(HttpHeader) headers;
-  HttpContentEncoding encoding;
-  HttpConnectionState connection;
-  bool is_sorted;
+    Vector(HttpHeader) headers;
+    HttpContentEncoding encoding;
+    HttpConnectionState connection;
+    bool is_sorted;
 };
 
 typedef struct HttpHeaders HttpHeaders;
 
-const char *find_in_header(HttpHeaders *headers, const char *const key);
+const char* find_in_header(HttpHeaders* headers, const char* const key);
 
-void push_header_headers(HttpHeaders *headers, const char *const key,
-                         const char *const value);
+void push_header_headers(HttpHeaders* headers, const char* const key, const char* const value);
 
-size_t write_headers(uint8_t *const buf, HttpHeaders *headers);
+size_t write_headers(uint8_t* const buf, HttpHeaders* headers);
 
 struct HttpBody {
-  const uint8_t *body;
-  size_t len;
+    const uint8_t* body;
+    size_t len;
 };
 
 typedef struct HttpBody HttpBody;
 
 struct HttpResponse {
-  HttpVersion version;
-  HttpStatus status;
-  HttpHeaders headers;
-  HttpBody body;
+    HttpVersion version;
+    HttpStatus status;
+    HttpHeaders headers;
+    HttpBody body;
 };
 
 typedef struct HttpResponse HttpResponse;
 
-HttpResponse init_response(HttpStatus status, HttpContentEncoding encoding,
-                           HttpConnectionState connection_status);
-void push_header_response(HttpResponse *resp, const char *const key,
-                          const char *const value);
-void free_http_response(HttpResponse *resp);
+HttpResponse init_response(
+    HttpStatus status,
+    HttpContentEncoding encoding,
+    HttpConnectionState connection_status
+);
+void push_header_response(HttpResponse* resp, const char* const key, const char* const value);
+void free_http_response(HttpResponse* resp);
 
-size_t write_response(uint8_t *const buf, HttpResponse *resp);
+size_t write_response(uint8_t* const buf, HttpResponse* resp);
 
 // // Request line
 // GET                          // HTTP method
@@ -103,25 +104,25 @@ size_t write_response(uint8_t *const buf, HttpResponse *resp);
 
 // Every method needs a different bit entry
 enum HttpMethod {
-  GET = 0x01,
-  POST = 0x02,
+    GET = 0x01,
+    POST = 0x02,
 };
 
 typedef enum HttpMethod HttpMethod;
 
 struct HttpRequest {
-  HttpMethod method;
-  const char *url;
-  HttpVersion version;
-  HttpHeaders headers;
-  HttpBody body;
+    HttpMethod method;
+    const char* url;
+    HttpVersion version;
+    HttpHeaders headers;
+    HttpBody body;
 };
 
 typedef struct HttpRequest HttpRequest;
 
-HttpRequest parse_request(uint8_t *buf);
+HttpRequest parse_request(uint8_t* buf);
 
-void free_http_request(HttpRequest *req);
+void free_http_request(HttpRequest* req);
 
 // headers
 #define CONTENT_TYPE "Content-Type"

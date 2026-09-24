@@ -72,6 +72,8 @@ target_link_libraries(http-server PRIVATE http-server-lib)
 # ----------------------------- TESTS / BENCHMARKS -----------------------------
 
 if(LOCAL)
+    include(cmake/ClangFormat.cmake)
+
     enable_testing()
 
     add_executable(http-server-test

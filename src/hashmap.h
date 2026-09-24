@@ -20,108 +20,108 @@
 #define HASHMAP_MATCHES_MAP 0x8080808080808080ULL
 
 struct HashMapSlotQuery {
-  size_t key_size;
-  size_t key_alignment;
-  size_t value_size;
-  size_t value_alignment;
+    size_t key_size;
+    size_t key_alignment;
+    size_t value_size;
+    size_t value_alignment;
 };
 
 typedef struct HashMapSlotQuery HashMapSlotQuery;
 
 struct HashMapSlotConfigurations {
-  size_t key_offset;
-  size_t value_offset;
-  size_t slot_size;
+    size_t key_offset;
+    size_t value_offset;
+    size_t slot_size;
 };
 
 typedef struct HashMapSlotConfigurations HashMapSlotConfigurations;
 
 #define MAX(a, b) (a) < (b) ? (b) : (a)
 
-HashMapSlotConfigurations hashmap_slot_config(struct HashMapSlotQuery *query);
+HashMapSlotConfigurations hashmap_slot_config(struct HashMapSlotQuery* query);
 
 struct HashMapSlot {
-  void *key;
-  void *value;
+    void* key;
+    void* value;
 };
 
 typedef struct HashMapSlot HashMapSlot;
 
 #ifdef HASHMAP_ENABLE_STATS
 struct HashMapStats {
-  size_t hash_calculations;
-  size_t put_calls;
-  size_t insert_probes;
-  size_t insert_swaps;
-  size_t lookup_calls;
-  size_t lookup_probes;
-  size_t lookup_hits;
-  size_t remove_calls;
-  size_t remove_probes;
-  size_t reserved_inserts;
-  size_t growing_inserts;
-  size_t resize_count;
-  size_t resize_only_ns;
-  size_t migrated_elements;
-  size_t entries_reinserted;
-  size_t allocations;
-  size_t groups_scanned;
-  size_t groups_scanned_during_reinsertion;
+    size_t hash_calculations;
+    size_t put_calls;
+    size_t insert_probes;
+    size_t insert_swaps;
+    size_t lookup_calls;
+    size_t lookup_probes;
+    size_t lookup_hits;
+    size_t remove_calls;
+    size_t remove_probes;
+    size_t reserved_inserts;
+    size_t growing_inserts;
+    size_t resize_count;
+    size_t resize_only_ns;
+    size_t migrated_elements;
+    size_t entries_reinserted;
+    size_t allocations;
+    size_t groups_scanned;
+    size_t groups_scanned_during_reinsertion;
 };
 
 typedef struct HashMapStats HashMapStats;
 #endif
 
 struct HashMapInternal {
-  size_t len;
-  size_t capacity;
-  size_t mask_capacity;
-  size_t grow_at;
-  size_t load_factor_percent;
-  HashMapHasher hasher;
-  HashMapEqFn eq_fn;
-  size_t key_size;
-  size_t key_offset;
-  size_t value_size;
-  size_t value_offset;
-  size_t slot_size;
+    size_t len;
+    size_t capacity;
+    size_t mask_capacity;
+    size_t grow_at;
+    size_t load_factor_percent;
+    HashMapHasher hasher;
+    HashMapEqFn eq_fn;
+    size_t key_size;
+    size_t key_offset;
+    size_t value_size;
+    size_t value_offset;
+    size_t slot_size;
 #ifdef HASHMAP_ENABLE_STATS
-  HashMapStats stats;
+    HashMapStats stats;
 #endif
-  // control bytes
-  //                   64-bit hash
-  // ┌───────────────────────────────────────────────┬───────┐
-  // │                     H1                        │  H2   │
-  // └───────────────────────────────────────────────┴───────┘
-  //                                                    7 bits
-  // ┌────┬────┬────┬────┬────┬────┬────┬────┬ ... ┐
-  // │ H2 │ H2 │ E  │ H2 │ H2 │ D  │ H2 │ H2 │     │
-  // └────┴────┴────┴────┴────┴────┴────┴────┴ ... ┘
-  uint8_t *control;
-  // U
-  uint8_t *distance;
-  // Data := HashMapSlotHeader KEY VALUE * capacity
-  // padding it for alignment
-  // ┌─────────────── entry 0 ─────────────────────────────────────────────────┐
-  // │ hash │ occupied │ padding │ key bytes │ padding │ value bytes │ padding │
-  // ├─────────────── entry 1 ─────────────────────────────────────────────────┤
-  // │ hash │ occupied │ padding │ key bytes │ padding │ value bytes │ padding │
-  // ├─────────────────────────────────────────────────────────────────────────┤
-  // │ ...                                                                     │
-  // └─────────────────────────────────────────────────────────────────────────┘
-  uint8_t *data;
+    // control bytes
+    //                   64-bit hash
+    // ┌───────────────────────────────────────────────┬───────┐
+    // │                     H1                        │  H2   │
+    // └───────────────────────────────────────────────┴───────┘
+    //                                                    7 bits
+    // ┌────┬────┬────┬────┬────┬────┬────┬────┬ ... ┐
+    // │ H2 │ H2 │ E  │ H2 │ H2 │ D  │ H2 │ H2 │     │
+    // └────┴────┴────┴────┴────┴────┴────┴────┴ ... ┘
+    uint8_t* control;
+    // U
+    uint8_t* distance;
+    // Data := HashMapSlotHeader KEY VALUE * capacity
+    // padding it for alignment
+    // ┌─────────────── entry 0 ─────────────────────────────────────────────────┐
+    // │ hash │ occupied │ padding │ key bytes │ padding │ value bytes │ padding │
+    // ├─────────────── entry 1 ─────────────────────────────────────────────────┤
+    // │ hash │ occupied │ padding │ key bytes │ padding │ value bytes │ padding │
+    // ├─────────────────────────────────────────────────────────────────────────┤
+    // │ ...                                                                     │
+    // └─────────────────────────────────────────────────────────────────────────┘
+    uint8_t* data;
 };
 
 typedef struct HashMapInternal HashMapInternal;
 
-#define HashMap(key_type, value_type)                                          \
-  union {                                                                      \
-    HashMapInternal internal;                                                  \
-    /* NOLINTNEXTLINE bugprone-macro-parentheses */                            \
-    key_type *key_payload;                                                     \
-    /* NOLINTNEXTLINE bugprone-macro-parentheses */                            \
-    value_type *value_payload;                                                 \
-  }
+#define HashMap(key_type, value_type)                                                              \
+    union {                                                                                        \
+        HashMapInternal internal;                                                                  \
+        /* NOLINTNEXTLINE bugprone-macro-parentheses */                                            \
+        key_type* key_payload;                                                                     \
+        /* NOLINTNEXTLINE bugprone-macro-parentheses */                                            \
+        value_type* value_payload;                                                                 \
+    }
 
 #define hashmap_alignment_key(map) alignof(TYPEOF(*(map)->key_payload))
 
@@ -143,108 +143,130 @@ typedef struct HashMapInternal HashMapInternal;
 
 #define hashmap_value_ptr(map) TYPEOF((map)->value_payload)
 
-void hashmap_init_with_algo_impl(HashMapInternal *map, HashMapAlgorithm algo,
-                                 HashMapHashFn hash_fn, HashMapEqFn eq_fn,
-                                 size_t key_size, size_t key_alignment,
-                                 size_t value_size, size_t value_alignment);
+void hashmap_init_with_algo_impl(
+    HashMapInternal* map,
+    HashMapAlgorithm algo,
+    HashMapHashFn hash_fn,
+    HashMapEqFn eq_fn,
+    size_t key_size,
+    size_t key_alignment,
+    size_t value_size,
+    size_t value_alignment
+);
 
-#define hashmap_init_with_algo(map, algo, hash_fn, eq_fn)                      \
-  hashmap_init_with_algo_impl(                                                 \
-      (&(map)->internal), (algo), (hash_fn), (eq_fn), hashmap_key_size(map),   \
-      hashmap_alignment_key(map), hashmap_value_size(map),                     \
-      hashmap_alignment_value(map))
+#define hashmap_init_with_algo(map, algo, hash_fn, eq_fn)                                          \
+    hashmap_init_with_algo_impl(                                                                   \
+        (&(map)->internal),                                                                        \
+        (algo),                                                                                    \
+        (hash_fn),                                                                                 \
+        (eq_fn),                                                                                   \
+        hashmap_key_size(map),                                                                     \
+        hashmap_alignment_key(map),                                                                \
+        hashmap_value_size(map),                                                                   \
+        hashmap_alignment_value(map)                                                               \
+    )
 
-void hashmap_init_impl(HashMapInternal *map, HashMapHasher hasher,
-                       HashMapEqFn eq_fn, size_t key_size, size_t key_alignment,
-                       size_t value_size, size_t value_alignment);
+void hashmap_init_impl(
+    HashMapInternal* map,
+    HashMapHasher hasher,
+    HashMapEqFn eq_fn,
+    size_t key_size,
+    size_t key_alignment,
+    size_t value_size,
+    size_t value_alignment
+);
 
-#define hashmap_init(map)                                                      \
-  hashmap_init_impl((&(map)->internal),                                        \
-                    HASHMAP_HASHER_FOR(hashmap_key(map), fnv1a, Fnv1a),        \
-                    (hashmap_eq_fn_for_key(hashmap_key(map))),                 \
-                    hashmap_key_size(map), hashmap_alignment_key(map),         \
-                    hashmap_value_size(map), hashmap_alignment_value(map))
+#define hashmap_init(map)                                                                          \
+    hashmap_init_impl(                                                                             \
+        (&(map)->internal),                                                                        \
+        HASHMAP_HASHER_FOR(hashmap_key(map), fnv1a, Fnv1a),                                        \
+        (hashmap_eq_fn_for_key(hashmap_key(map))),                                                 \
+        hashmap_key_size(map),                                                                     \
+        hashmap_alignment_key(map),                                                                \
+        hashmap_value_size(map),                                                                   \
+        hashmap_alignment_value(map)                                                               \
+    )
 
-void hashmap_free_impl(HashMapInternal *map);
+void hashmap_free_impl(HashMapInternal* map);
 
 #define hashmap_free(map) hashmap_free_impl((&(map)->internal))
 
 // Will try to insert the key into the map will return true if there already
 // was a key previously inserted into the db
-bool hashmap_put_impl(HashMapInternal *map, const void *key, const void *value);
+bool hashmap_put_impl(HashMapInternal* map, const void* key, const void* value);
 
-#define hashmap_put(map, key, value)                                           \
-  ({                                                                           \
-    hashmap_key_type(map) _hashmap_key = (key);                                \
-    hashmap_value_type(map) _hashmap_value = (value);                          \
-    hashmap_put_impl(&(map)->internal, (const void *)&_hashmap_key,            \
-                     (const void *)&_hashmap_value);                           \
-  })
+#define hashmap_put(map, key, value)                                                               \
+    ({                                                                                             \
+        hashmap_key_type(map) _hashmap_key = (key);                                                \
+        hashmap_value_type(map) _hashmap_value = (value);                                          \
+        hashmap_put_impl(                                                                          \
+            &(map)->internal,                                                                      \
+            (const void*)&_hashmap_key,                                                            \
+            (const void*)&_hashmap_value                                                           \
+        );                                                                                         \
+    })
 
-void *hashmap_get_impl(HashMapInternal *map, const void *key);
+void* hashmap_get_impl(HashMapInternal* map, const void* key);
 
-#define hashmap_get(map, key)                                                  \
-  ({                                                                           \
-    hashmap_key_type(map) _hashmap_key = (key);                                \
-    (hashmap_value_ptr(map))                                                   \
-        hashmap_get_impl(&(map)->internal, (const void *)&_hashmap_key);       \
-  })
+#define hashmap_get(map, key)                                                                      \
+    ({                                                                                             \
+        hashmap_key_type(map) _hashmap_key = (key);                                                \
+        (hashmap_value_ptr(map)) hashmap_get_impl(&(map)->internal, (const void*)&_hashmap_key);   \
+    })
 
-bool hashmap_remove_impl(HashMapInternal *map, const void *key);
+bool hashmap_remove_impl(HashMapInternal* map, const void* key);
 
-#define hashmap_remove(map, key)                                               \
-  ({                                                                           \
-    hashmap_key_type(map) _hashmap_key = (key);                                \
-    hashmap_remove_impl(&(map)->internal, (const void *)&_hashmap_key);        \
-  })
+#define hashmap_remove(map, key)                                                                   \
+    ({                                                                                             \
+        hashmap_key_type(map) _hashmap_key = (key);                                                \
+        hashmap_remove_impl(&(map)->internal, (const void*)&_hashmap_key);                         \
+    })
 
-size_t hashmap_len_impl(const HashMapInternal *map);
+size_t hashmap_len_impl(const HashMapInternal* map);
 
 #define hashmap_len(map) hashmap_len_impl(&(map)->internal)
 
-HashMapSlot hashmap_get_slot_externaly_impl(HashMapInternal *map, size_t idx);
+HashMapSlot hashmap_get_slot_externaly_impl(HashMapInternal* map, size_t idx);
 
-#define hashmap_get_slot(map, idx)                                             \
-  hashmap_get_slot_externaly_impl(&(map)->internal, (idx))
+#define hashmap_get_slot(map, idx) hashmap_get_slot_externaly_impl(&(map)->internal, (idx))
 
-bool hashmap_is_empty_impl(HashMapInternal *map);
+bool hashmap_is_empty_impl(HashMapInternal* map);
 
 #define hashmap_is_empty(map) hashmap_is_empty_impl(&(map)->internal)
 
-size_t hashmap_capacity_impl(HashMapInternal *map);
+size_t hashmap_capacity_impl(HashMapInternal* map);
 
 #define hashmap_capacity(map) hashmap_capacity_impl(&(map)->internal)
 
-void hashmap_clear_impl(HashMapInternal *map);
+void hashmap_clear_impl(HashMapInternal* map);
 
 #define hashmap_clear(map) hashmap_clear_impl(&(map)->internal)
 
-bool hashmap_contains_impl(HashMapInternal *map, const void *key);
+bool hashmap_contains_impl(HashMapInternal* map, const void* key);
 
-#define hashmap_contains(map, key)                                             \
-  ({                                                                           \
-    hashmap_key_type(map) _hashmap_key = (key);                                \
-    hashmap_contains_impl(&(map)->internal, (const void *)&_hashmap_key);      \
-  })
+#define hashmap_contains(map, key)                                                                 \
+    ({                                                                                             \
+        hashmap_key_type(map) _hashmap_key = (key);                                                \
+        hashmap_contains_impl(&(map)->internal, (const void*)&_hashmap_key);                       \
+    })
 
-void hashmap_reserve_impl(HashMapInternal *map, size_t size);
+void hashmap_reserve_impl(HashMapInternal* map, size_t size);
 
 #define hashmap_reserve(map, size) hashmap_reserve_impl(&(map)->internal, size)
 
-void hashmap_set_load_factor_percent_impl(HashMapInternal *map,
-                                          size_t load_factor_percent);
+void hashmap_set_load_factor_percent_impl(HashMapInternal* map, size_t load_factor_percent);
 
-#define hashmap_set_load_factor_percent(map, load_factor_percent)              \
-  hashmap_set_load_factor_percent_impl(&(map)->internal, load_factor_percent)
+#define hashmap_set_load_factor_percent(map, load_factor_percent)                                  \
+    hashmap_set_load_factor_percent_impl(&(map)->internal, load_factor_percent)
 
-Hash hashmap_calculate_hash(HashMapInternal *map, const void *key);
+Hash hashmap_calculate_hash(HashMapInternal* map, const void* key);
 
 #ifdef HASHMAP_ENABLE_STATS
-HashMapStats hashmap_stats_impl(const HashMapInternal *map);
+HashMapStats hashmap_stats_impl(const HashMapInternal* map);
 
 #define hashmap_stats(map) hashmap_stats_impl(&(map)->internal)
 
-void hashmap_stats_reset_impl(HashMapInternal *map);
+void hashmap_stats_reset_impl(HashMapInternal* map);
 
 #define hashmap_stats_reset(map) hashmap_stats_reset_impl(&(map)->internal)
 #endif

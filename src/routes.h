@@ -6,11 +6,11 @@
 #include "http.h"
 
 struct AppState {
-  const char *directory;
+    const char* directory;
 };
 
 typedef struct AppState AppState;
 
-size_t handle_routes(uint8_t *const buf, HttpRequest *req, AppState *state);
+size_t handle_routes(uint8_t* const buf, HttpRequest* req, AppState* state);
 
 #endif // !ROUTES
